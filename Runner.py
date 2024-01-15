@@ -323,12 +323,5 @@ if __name__ == "__main__":
 
                 # Execute the batch update
                 spreadSheetMain.values_batch_update(cell_range, body)
-
-
-                
-
-
-
-
        
     save_data(team_data, 'demoCreation')

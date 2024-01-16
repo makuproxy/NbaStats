@@ -6,22 +6,34 @@ import time
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import numpy as np
+import os
+from google.oauth2 import service_account
+from dotenv import load_dotenv
+import json
 
+process_start_time = time.time()
 
-# Set up Google Sheets credentials
-scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-credentials = ServiceAccountCredentials.from_json_keyfile_name('./rapid-stage-642-94546a81c2dc.json', scope)
-gc = gspread.authorize(credentials)
+load_dotenv()
 
-output_type = 'sheets'
-googleFolderId = '1Xowlegsahvlo628xT1TGw5UF70OW8awb'
+# Constants
+GSHEET_NBA_MAKU_CREDENTIALS = os.getenv("GSHEET_NBA_MAKU_CREDENTIALS")
+GSHEET_NBA_MAKU_FOLDER_ID = os.getenv("GSHEET_NBA_MAKU_FOLDER_ID")
+FILENAME_OUTPUT = os.getenv("FILENAME_OUTPUT")
+FORMAT_OUTPUT_TYPE = os.getenv("FORMAT_OUTPUT_TYPE") or 'excel'
 
-def scrape_and_save(urls, sheet_suffix, team_data=None):
+def load_credentials():
+    # Load and return Google Sheets credentials
+    # credentials = ServiceAccountCredentials.from_json_keyfile_name('./rapid-stage-642-94546a81c2dc.json', scope)
+    scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+    credentials_dict = json.loads(GSHEET_NBA_MAKU_CREDENTIALS)
+    return ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
+
+def scrape_data(urls, sheet_suffix, team_data=None):
     # If team_data is not provided, initialize an empty dictionary
     team_data = team_data or {}
 
     # Start the timer
-    start_time = time.time()    
+    url_start_time = time.time()
 
     # Iterate through each URL
     for url in urls:
@@ -59,7 +71,6 @@ def scrape_and_save(urls, sheet_suffix, team_data=None):
                 team_df = pd.read_html(StringIO(str(main_elements[index + 1])))[0]
                 break
 
-
         # Add the DataFrame to the dictionary with the team name as the key
         if team_name and team_df is not None:
             if team_name not in team_data:
@@ -69,16 +80,83 @@ def scrape_and_save(urls, sheet_suffix, team_data=None):
                 team_data[team_name] = pd.concat([team_data[team_name], team_df])
 
     # Stop the timer
-    end_time = time.time()
+    url_end_time = time.time()
 
     # Calculate the total time taken
-    total_time = end_time - start_time
+    url_total_time = url_end_time - url_start_time
 
     # Print the total time taken
-    print(f"Total time taken: {total_time:.2f} seconds")
+    print(f"Total time taken: {url_total_time:.2f} seconds for {sheet_suffix}")
 
     # Return the updated team_data
     return team_data
+
+def save_excel(data, filename):
+    # Create an Excel file with all data in separate sheets using openpyxl engine
+    with pd.ExcelWriter(f'{filename}.xlsx', engine='openpyxl') as writer:
+        for team_name, df in data.items():
+            sheet_name = f"{team_name}"  # No need for suffix here
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+def save_sheets(data, folder_id, sheet_name):
+    # Set up Google Sheets credentials
+    credentials = load_credentials()
+    gc = gspread.authorize(credentials)
+    google_folder_id = folder_id
+
+    existing_spread_sheets = gc.list_spreadsheet_files(folder_id=google_folder_id)
+    spread_sheet_exists = any(sheet_name == sheet['name'] for sheet in existing_spread_sheets)
+
+    if spread_sheet_exists:
+        spread_sheet_main = gc.open(sheet_name, google_folder_id)
+    else:
+        spread_sheet_main = gc.create(sheet_name, google_folder_id)
+
+    # Clear all sheets in the spreadsheet
+    for sheet in spread_sheet_main.worksheets():
+        sheet.clear()
+
+    # DELETE all sheets in the spreadsheet
+    # for sheet in spread_sheet_main.worksheets():
+    #     if sheet.title != "BaseNoDelete":
+    #         spread_sheet_main.del_worksheet(sheet)
+
+    spread_sheet_helper = None
+    update_requests = []
+
+    for team_name, df in data.items():
+        # Get or create a worksheet with the team name
+        try:
+            spread_sheet_helper = spread_sheet_main.worksheet(title=team_name)
+        except gspread.exceptions.WorksheetNotFound:
+            spread_sheet_helper = spread_sheet_main.add_worksheet(title=team_name, rows=800, cols=50)
+
+        update_requests.append({
+            'updateCells': {
+                'range': {
+                    'sheetId': spread_sheet_helper.id,
+                },
+                'fields': 'userEnteredValue',
+            }
+        })
+
+        # Update values in the worksheet
+        update_requests.append({
+            'updateCells': {
+                'range': {
+                    'sheetId': spread_sheet_helper.id,
+                },
+                'fields': 'userEnteredValue',
+                'rows': [{'values': [{'userEnteredValue': {'stringValue': str(value)}} for value in row]} for row in
+                         [df.columns.tolist()] + df.replace({np.nan: None}).values.tolist()],
+            }
+        })
+
+    batch_update_values_request_body = {
+        'requests': update_requests
+    }
+
+    spread_sheet_main.batch_update(batch_update_values_request_body)
 
 if __name__ == "__main__":
     # URLs for schedule
@@ -90,238 +168,35 @@ if __name__ == "__main__":
         "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2021",
         "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2022",
         "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Brooklyn-Nets/38/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Brooklyn-Nets/38/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Brooklyn-Nets/38/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Brooklyn-Nets/38/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Charlotte-Hornets/3/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Charlotte-Hornets/3/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Charlotte-Hornets/3/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Charlotte-Hornets/3/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Chicago-Bulls/4/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Chicago-Bulls/4/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Chicago-Bulls/4/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Chicago-Bulls/4/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Cleveland-Cavaliers/5/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Cleveland-Cavaliers/5/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Cleveland-Cavaliers/5/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Cleveland-Cavaliers/5/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Dallas-Mavericks/6/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Dallas-Mavericks/6/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Dallas-Mavericks/6/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Dallas-Mavericks/6/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Denver-Nuggets/7/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Denver-Nuggets/7/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Denver-Nuggets/7/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Denver-Nuggets/7/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Detroit-Pistons/8/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Detroit-Pistons/8/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Detroit-Pistons/8/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Detroit-Pistons/8/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Golden-State-Warriors/9/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Golden-State-Warriors/9/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Golden-State-Warriors/9/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Golden-State-Warriors/9/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Houston-Rockets/10/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Houston-Rockets/10/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Houston-Rockets/10/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Houston-Rockets/10/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Indiana-Pacers/11/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Indiana-Pacers/11/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Indiana-Pacers/11/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Indiana-Pacers/11/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Los-Angeles-Clippers/12/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Los-Angeles-Clippers/12/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Los-Angeles-Clippers/12/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Los-Angeles-Clippers/12/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Los-Angeles-Lakers/13/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Los-Angeles-Lakers/13/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Los-Angeles-Lakers/13/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Los-Angeles-Lakers/13/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Memphis-Grizzlies/14/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Memphis-Grizzlies/14/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Memphis-Grizzlies/14/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Memphis-Grizzlies/14/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Miami-Heat/15/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Miami-Heat/15/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Miami-Heat/15/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Miami-Heat/15/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Milwaukee-Bucks/16/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Milwaukee-Bucks/16/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Milwaukee-Bucks/16/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Milwaukee-Bucks/16/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Minnesota-Timberwolves/17/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Minnesota-Timberwolves/17/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Minnesota-Timberwolves/17/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Minnesota-Timberwolves/17/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/New-Orleans-Pelicans/19/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/New-Orleans-Pelicans/19/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/New-Orleans-Pelicans/19/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/New-Orleans-Pelicans/19/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/New-York-Knicks/20/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/New-York-Knicks/20/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/New-York-Knicks/20/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/New-York-Knicks/20/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Oklahoma-City-Thunder/33/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Oklahoma-City-Thunder/33/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Oklahoma-City-Thunder/33/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Oklahoma-City-Thunder/33/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Orlando-Magic/21/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Orlando-Magic/21/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Orlando-Magic/21/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Orlando-Magic/21/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Philadelphia-Sixers/22/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Philadelphia-Sixers/22/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Philadelphia-Sixers/22/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Philadelphia-Sixers/22/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Phoenix-Suns/23/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Phoenix-Suns/23/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Phoenix-Suns/23/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Phoenix-Suns/23/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Portland-Trail-Blazers/24/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Portland-Trail-Blazers/24/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Portland-Trail-Blazers/24/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Portland-Trail-Blazers/24/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Sacramento-Kings/25/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Sacramento-Kings/25/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Sacramento-Kings/25/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Sacramento-Kings/25/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/San-Antonio-Spurs/26/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/San-Antonio-Spurs/26/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/San-Antonio-Spurs/26/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/San-Antonio-Spurs/26/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Toronto-Raptors/28/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Toronto-Raptors/28/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Toronto-Raptors/28/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Toronto-Raptors/28/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Utah-Jazz/29/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Utah-Jazz/29/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Utah-Jazz/29/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Utah-Jazz/29/Schedule/2024",
-        "https://basketball.realgm.com/nba/teams/Washington-Wizards/30/Schedule/2021",
-        "https://basketball.realgm.com/nba/teams/Washington-Wizards/30/Schedule/2022",
-        "https://basketball.realgm.com/nba/teams/Washington-Wizards/30/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Washington-Wizards/30/Schedule/2024"
+        "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2024"
     ]
 
     # URLs for stats
     stats_urls = [
         "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Brooklyn-Nets/38/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Charlotte-Hornets/3/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Chicago-Bulls/4/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Cleveland-Cavaliers/5/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Dallas-Mavericks/6/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Denver-Nuggets/7/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Detroit-Pistons/8/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Golden-State-Warriors/9/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Houston-Rockets/10/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Indiana-Pacers/11/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Los-Angeles-Clippers/12/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Los-Angeles-Lakers/13/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Memphis-Grizzlies/14/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Miami-Heat/15/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Milwaukee-Bucks/16/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Minnesota-Timberwolves/17/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/New-Orleans-Pelicans/19/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/New-York-Knicks/20/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Oklahoma-City-Thunder/33/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Orlando-Magic/21/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Philadelphia-Sixers/22/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Phoenix-Suns/23/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Portland-Trail-Blazers/24/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Sacramento-Kings/25/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/San-Antonio-Spurs/26/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Toronto-Raptors/28/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Utah-Jazz/29/Stats/2024/Averages/All/points/All/desc/1/Regular_Season",
-        "https://basketball.realgm.com/nba/teams/Washington-Wizards/30/Stats/2024/Averages/All/points/All/desc/1/Regular_Season"
+        "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Stats/2024/Averages/All/points/All/desc/1/Regular_Season"
     ]
-    
+
     # Scrape and save schedule data
-    team_data = scrape_and_save(schedule_urls, "_RS")
+    schedule_data = scrape_data(schedule_urls, "_RS")
 
-    # Scrape and save stats data, passing the existing team_data
-    team_data = scrape_and_save(stats_urls, "_ST", team_data)
+    # Scrape and save stats data, passing the existing schedule_data
+    stats_data = scrape_data(stats_urls, "_ST", schedule_data)
 
+    # Save data based on the output type
+    if FORMAT_OUTPUT_TYPE == 'excel':
+        save_excel(stats_data, FILENAME_OUTPUT)
+    elif FORMAT_OUTPUT_TYPE == 'sheets':
+        save_sheets(stats_data, GSHEET_NBA_MAKU_FOLDER_ID, FILENAME_OUTPUT)
 
-    # Create a function to save the data based on the output_type
-    def save_data(data, gsName):
+    process_end_time = time.time()
 
-        scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-        credentials = ServiceAccountCredentials.from_json_keyfile_name('./rapid-stage-642-94546a81c2dc.json', scope)
-        gc = gspread.authorize(credentials)
+    # Calculate the total time taken
+    process_total_time = process_end_time - process_start_time
 
-        output_type = 'excel'
-        googleFolderId = '1Xowlegsahvlo628xT1TGw5UF70OW8awb'
-
-
-        if output_type == 'excel':
-            # Create an Excel file with all data in separate sheets using openpyxl engine
-            with pd.ExcelWriter('output_teams_combined.xlsx', engine='openpyxl') as writer:
-                for team_name, df in team_data.items():            
-                    sheet_name = f"{team_name}"  # No need for suffix here
-                    df.to_excel(writer, sheet_name=sheet_name, index=False)
-        elif output_type == 'sheets':
-            # Assuming you want to save to Google Sheets
-            # worksheet = gc.create(name, googleFolderId)
-            # worksheet.update([data.columns.values.tolist()] + data.values.tolist())
-            existing_spreadSheets = gc.list_spreadsheet_files(folder_id=googleFolderId)
-            spreadSheet_exists = any(gsName == sheet['name'] for sheet in existing_spreadSheets)
-
-
-            if spreadSheet_exists:
-                # Use the existing sheet
-                spreadSheetMain = gc.open(gsName, googleFolderId)
-            else:
-                # Create a new sheet
-                spreadSheetMain = gc.create(gsName, googleFolderId)
-            
-            # Clear all sheets in the spreadsheet
-            for sheet in spreadSheetMain.worksheets():
-                sheet.clear()
-
-            spreadSheetHelper = None
-
-            for team_name, df in data.items():
-                # Get or create a worksheet with the team name                
-                try:                    
-                    spreadSheetHelper = spreadSheetMain.worksheet(title=team_name)
-                except gspread.exceptions.WorksheetNotFound:
-                    spreadSheetHelper = spreadSheetMain.add_worksheet(title=team_name, rows=800, cols=50)
-
-                # # Update the worksheet with the data                
-                # print(spreadSheetHelper.title)                
-                # values = [df.columns.values.tolist()] + df.replace({np.nan: None}).values.tolist()
-                # print(values)
-                # print("11111")
-                # print("11111")
-                # print("11111")
-                # print("11111")
-                # print("11111")
-                # print("11111")
-                # # spreadSheetHelper.update('A1', values)
-                    
-                # Define the range
-                cell_range = f'A1:{chr(65 + len(data[0]) - 1)}{len(data) + 1}'
-                # Update the worksheet using batch_update
-                body = {
-                    'values': data
-                }
-
-                # Create a batch update request
-                batch_update_values_request_body = {
-                    'value_input_option': 'RAW',
-                    'data': [
-                        {
-                            'range': cell_range,
-                            'values': data
-                        }
-                    ]
-                }
-
-                # Execute the batch update
-                spreadSheetMain.values_batch_update(cell_range, body)
-       
-    save_data(team_data, 'demoCreation')
+    # Print the total time taken
+    print("*************************************")
+    print("*************************************")
+    print(f"Total time taken: {process_total_time:.2f} seconds")
+    print("*************************************")
+    print("*************************************")

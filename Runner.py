@@ -28,6 +28,28 @@ def load_credentials():
     credentials_dict = json.loads(GSHEET_NBA_MAKU_CREDENTIALS)
     return ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
 
+# credentials = load_credentials()
+# gc = gspread.authorize(credentials)
+# google_folder_id = GSHEET_NBA_MAKU_FOLDER_ID
+
+# existing_spread_sheets = gc.list_spreadsheet_files(folder_id=google_folder_id)
+# spread_sheet_exists = any(FILENAME_OUTPUT == sheet['name'] for sheet in existing_spread_sheets)
+
+# if spread_sheet_exists:
+#     spread_sheet_main = gc.open(FILENAME_OUTPUT, google_folder_id)
+# else:
+#     spread_sheet_main = gc.create(FILENAME_OUTPUT, google_folder_id)
+
+# # # Clear all sheets in the spreadsheet
+# # for sheet in spread_sheet_main.worksheets():
+# #     sheet.clear()
+
+# # DELETE all sheets in the spreadsheet
+# for sheet in spread_sheet_main.worksheets():
+#     if sheet.title != "BaseNoDelete" or sheet != "Sheet1":
+#         spread_sheet_main.del_worksheet(sheet)
+
+
 def scrape_data(urls, sheet_suffix, team_data=None):
     # If team_data is not provided, initialize an empty dictionary
     team_data = team_data or {}

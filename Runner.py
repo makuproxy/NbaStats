@@ -20,12 +20,13 @@ load_dotenv()
 # Constants
 GSHEET_NBA_MAKU_CREDENTIALS = os.getenv("GSHEET_NBA_MAKU_CREDENTIALS")
 GSHEET_NBA_MAKU_FOLDER_ID = os.getenv("GSHEET_NBA_MAKU_FOLDER_ID")
-GSHEET_NBA_MAKU_TIME_DELAY = int(os.getenv("GSHEET_NBA_MAKU_TIME_DELAY"))
+GSHEET_NBA_MAKU_TIME_DELAY = os.getenv("GSHEET_NBA_MAKU_TIME_DELAY")
 FILENAME_OUTPUT = os.getenv("FILENAME_OUTPUT")
 FORMAT_OUTPUT_TYPE = os.getenv("FORMAT_OUTPUT_TYPE") or 'excel'
 
 
 print(GSHEET_NBA_MAKU_TIME_DELAY)
+print(type(GSHEET_NBA_MAKU_TIME_DELAY))
 
 # def load_credentials():
 #     # Load and return Google Sheets credentials

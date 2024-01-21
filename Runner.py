@@ -20,6 +20,7 @@ load_dotenv()
 # Constants
 GSHEET_NBA_MAKU_CREDENTIALS = os.getenv("GSHEET_NBA_MAKU_CREDENTIALS")
 GSHEET_NBA_MAKU_FOLDER_ID = os.getenv("GSHEET_NBA_MAKU_FOLDER_ID")
+GSHEET_NBA_MAKU_TIME_DELAY = int(os.getenv("GSHEET_NBA_MAKU_TIME_DELAY"))
 FILENAME_OUTPUT = os.getenv("FILENAME_OUTPUT")
 FORMAT_OUTPUT_TYPE = os.getenv("FORMAT_OUTPUT_TYPE") or 'excel'
 
@@ -189,7 +190,7 @@ def save_sheets(data, folder_id, sheet_name):
 
         if index % 20 == 0:
             print(f"Cleaned {index} teams.")
-            time.sleep(65)
+            time.sleep(GSHEET_NBA_MAKU_TIME_DELAY)
 
     # DELETE all sheets in the spreadsheet
     # for sheet in spread_sheet_main.worksheets():
@@ -229,7 +230,7 @@ def save_sheets(data, folder_id, sheet_name):
 
         if index % 20 == 0:
             print(f"Processed {index} teams.")
-            time.sleep(65)
+            time.sleep(GSHEET_NBA_MAKU_TIME_DELAY)
     
     batch_update_values_request_body = {
         'requests': update_requests

@@ -11,3 +11,4 @@ google_oauth2_tool==0.0.3
 python-dotenv==1.0.0
 # openai==0.27.0
 lxml==5.1.0
+gspread_dataframe==3.3.1

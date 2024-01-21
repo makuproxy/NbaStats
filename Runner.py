@@ -187,6 +187,13 @@ def save_sheets(data, folder_id, sheet_name):
     for sheet in spread_sheet_main.worksheets():
         sheet.clear()
 
+    for index, sheet in enumerate(spread_sheet_main.worksheets(), start=1):
+        sheet.clear()
+
+        if index % 20 == 0:
+            print(f"Cleaned {index} teams.")
+            time.sleep(65)
+
     # DELETE all sheets in the spreadsheet
     # for sheet in spread_sheet_main.worksheets():
     #     if sheet.title != "BaseNoDelete":

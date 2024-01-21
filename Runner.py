@@ -184,9 +184,6 @@ def save_sheets(data, folder_id, sheet_name):
         spread_sheet_main = gc.create(sheet_name, google_folder_id)
 
     # Clear all sheets in the spreadsheet
-    for sheet in spread_sheet_main.worksheets():
-        sheet.clear()
-
     for index, sheet in enumerate(spread_sheet_main.worksheets(), start=1):
         sheet.clear()
 

@@ -14,6 +14,7 @@ jobs:
       GSHEET_NBA_MAKU_FOLDER_ID: ${{ secrets.GSHEET_NBA_MAKU_FOLDER_ID }}
       FORMAT_OUTPUT_TYPE: ${{ vars.FORMAT_OUTPUT_TYPE }}
       FILENAME_OUTPUT: ${{ vars.FILENAME_OUTPUT }}
+      GSHEET_NBA_MAKU_TIME_DELAY: ${{ vars.GSHEET_NBA_MAKU_TIME_DELAY }}
 
     steps:
       - name: Checkout Repository

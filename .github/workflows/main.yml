@@ -7,7 +7,7 @@ on:
 
 jobs:
   your_job_name:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     env:
       GSHEET_NBA_MAKU_CREDENTIALS: ${{ secrets.GSHEET_NBA_MAKU_CREDENTIALS }}
@@ -18,8 +18,19 @@ jobs:
       ONEDRIVE_EXCEL_NBA_PATH: ${{ vars.ONEDRIVE_EXCEL_NBA_PATH }}
 
     steps:
-      - name: Run PowerShell Script
-        shell: pwsh
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Set Up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+
+      - name: Install Dependencies
         run: |
-          Set-ExecutionPolicy -Scope CurrentUser Unrestricted
-          .\UpdateNbaExcel.ps1
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Your Script
+        run: |
+          python Runner.py

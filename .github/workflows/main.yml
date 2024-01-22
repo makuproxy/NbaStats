@@ -25,22 +25,7 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: 3.8
-
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      
-      - name: Set up PowerShell
-        run: |
-          echo "##vso[task.prependpath]${env:ProgramFiles}\PowerShell\7"
-          pwsh -c "Set-ExecutionPolicy -Scope CurrentUser Unrestricted"
-      
-      - name: Wait for 30 seconds
-        run: |
-          echo "Waiting for 30 seconds..."
-          sleep 30
   
       - name: Run PowerShell Script
         run: |
-          pwsh -File UpdateNbaExcel.ps1
+          pwsh -ExecutionPolicy Bypass -File UpdateNbaExcel.ps1

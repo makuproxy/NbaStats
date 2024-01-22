@@ -18,13 +18,8 @@ jobs:
       ONEDRIVE_EXCEL_NBA_PATH: ${{ vars.ONEDRIVE_EXCEL_NBA_PATH }}
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v2
-
-      - name: Set Up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.8
+      - name: Set Up PowerShell
+        uses: microsoft/setup-powershell@v1      
   
       - name: Run PowerShell Script
         run: |

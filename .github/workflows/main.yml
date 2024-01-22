@@ -32,7 +32,9 @@ jobs:
           pip install -r requirements.txt
       
       - name: Set up PowerShell
-        uses: actions/setup-powershell@v2
+        run: |
+          pwsh -c "Set-ExecutionPolicy -Scope CurrentUser Unrestricted"
+
 
       - name: Run Your Script
         run: |
@@ -45,4 +47,4 @@ jobs:
   
       - name: Run PowerShell Script
         run: |
-          powershell -File UpdateNbaExcel.ps1
+          pwsh -File UpdateNbaExcel.ps1

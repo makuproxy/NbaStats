@@ -33,12 +33,9 @@ jobs:
       
       - name: Set up PowerShell
         run: |
-          pwsh -c "Set-ExecutionPolicy -Scope CurrentUser Unrestricted"
-
-
-      - name: Run Your Script
-        run: |
-          python Runner.py
+          $env:Path += ";${env:ProgramFiles}\PowerShell\7"
+          echo "##vso[task.prependpath]${env:ProgramFiles}\PowerShell\7"
+          pwsh -c "Set-ExecutionPolicy -Scope CurrentUser Unrestricted"      
       
       - name: Wait for 30 seconds
         run: |

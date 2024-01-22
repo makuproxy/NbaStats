@@ -7,7 +7,7 @@ on:
 
 jobs:
   your_job_name:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     env:
       GSHEET_NBA_MAKU_CREDENTIALS: ${{ secrets.GSHEET_NBA_MAKU_CREDENTIALS }}

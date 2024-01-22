@@ -18,9 +18,8 @@ jobs:
       ONEDRIVE_EXCEL_NBA_PATH: ${{ vars.ONEDRIVE_EXCEL_NBA_PATH }}
 
     steps:
-      - name: Set Up PowerShell
-        uses: actions/setup-powershell@v2 
-  
       - name: Run PowerShell Script
+        shell: pwsh
         run: |
-          pwsh -ExecutionPolicy Bypass -File UpdateNbaExcel.ps1
+          Set-ExecutionPolicy -Scope CurrentUser Unrestricted
+          .\UpdateNbaExcel.ps1

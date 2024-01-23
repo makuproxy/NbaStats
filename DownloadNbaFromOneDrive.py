@@ -3,6 +3,7 @@ import base64
 import aiohttp
 import asyncio
 from dotenv import load_dotenv, set_key
+from tqdm import tqdm
 
 load_dotenv()
 
@@ -17,7 +18,7 @@ async def get_filename_from_metadata(metadata):
         return metadata['name']
     return 'DownloadedFile.xlsm'
 
-async def download_file_fake(direct_download_url):
+async def download_file_fake(direct_download_url, progress_bar):
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(direct_download_url) as response:
@@ -33,16 +34,20 @@ async def download_file_fake(direct_download_url):
                     if download_url:
                         # Download the actual content using the provided download URL
                         async with session.get(download_url) as content_response:
-                            content = await content_response.read()
+                            content_length = int(content_response.headers.get('Content-Length', 0))
+                            progress_bar.total = content_length
+
                             # Save the content to a local file with the suggested filename
-                            with open(suggested_filename, 'wb') as file:
-                                file.write(content)
+                            with tqdm.wrapattr(open(suggested_filename, 'wb'), 'write', miniters=1,
+                                               total=content_length, desc=f'Downloading {suggested_filename}') as file:
+                                async for chunk in content_response.content.iter_any():
+                                    file.write(chunk)
+
                             absolute_path = os.path.abspath(suggested_filename)
                             # Set the absolute path in the .env file                            
-
                             set_key('.env', 'ONEDRIVE_EXCEL_NBA_PATH', absolute_path, quote_mode="never")
 
-                            print(f'Download successful. File saved as: {absolute_path}')
+                            print(f'\nDownload successful. File saved as: {absolute_path}')
                             return absolute_path
                     else:
                         print('Error: Download URL not found in metadata.')
@@ -59,10 +64,11 @@ async def main():
     direct_download_url = await create_onedrive_directdownload('https://1drv.ms/x/s!Ak0dKSJpYkQFhDLofq7_zWkxYG6L?e=Jlqhsf')
 
     # Run the event loop for the async function
-    absolute_path = await download_file_fake(direct_download_url)
+    with tqdm() as progress_bar:
+        absolute_path = await download_file_fake(direct_download_url, progress_bar)
 
     # Now you can use the 'absolute_path' variable in other methods or export it as needed
-    print(f'Absolute path outside download_file_fake: {absolute_path}')    
+    print(f'Absolute path outside download_file_fake: {absolute_path}')
 
 # Run the event loop to execute the asynchronous code
 asyncio.run(main())

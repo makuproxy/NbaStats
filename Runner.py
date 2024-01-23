@@ -123,53 +123,6 @@ def save_excel(data, filename):
             sheet_name = f"{team_name}"  # No need for suffix here
             df.to_excel(writer, sheet_name=sheet_name, index=False)
 
-
-def import_excel_to_sheets(excel_filename, sheet_name, folder_id):
-    # Set up Google Sheets credentials
-    credentials = load_credentials()
-    gc = gspread.authorize(credentials)
-    google_folder_id = folder_id
-
-    existing_spread_sheets = gc.list_spreadsheet_files(folder_id=google_folder_id)
-    spread_sheet_exists = any(sheet_name == sheet['name'] for sheet in existing_spread_sheets)
-
-    if spread_sheet_exists:
-        spread_sheet_main = gc.open(sheet_name, google_folder_id)
-    else:
-        spread_sheet_main = gc.create(sheet_name, google_folder_id)
-
-    start_excel_to_sheet = time.time()
-
-    # Import the Excel file into Google Sheets
-    with pd.ExcelFile(excel_filename) as xls:
-        for sheet_name in xls.sheet_names:
-            df = pd.read_excel(xls, sheet_name)
-            try:
-                # Try to get the worksheet with the same name
-                worksheet = spread_sheet_main.worksheet(title=sheet_name)
-            except gspread.exceptions.WorksheetNotFound:
-                # If not found, create a new worksheet
-                worksheet = spread_sheet_main.add_worksheet(title=sheet_name, rows=500, cols=30)
-
-            # Clear existing data in the worksheet
-            worksheet.clear()
-
-            # Update the worksheet with the new data
-            # gc_df = gd.get_as_dataframe(worksheet)
-            gd.set_with_dataframe(worksheet, df)
-
-    end_excel_to_sheet = time.time()
-
-    # Calculate the total time taken
-    total_excel_to_sheet = end_excel_to_sheet - start_excel_to_sheet
-
-    # Print the total time taken
-    print("||||||||||||||||||||||||||||||||||||||||||||||")
-    print("||||||||||||||||||||||||||||||||||||||||||||||")
-    print(f"Total time taken [Excel to Sheet]: {total_excel_to_sheet:.2f} seconds ")
-    print("||||||||||||||||||||||||||||||||||||||||||||||")
-    print("||||||||||||||||||||||||||||||||||||||||||||||")
-
 def save_sheets(data, folder_id, sheet_name):
     # Set up Google Sheets credentials
     credentials = load_credentials()
@@ -416,8 +369,7 @@ if __name__ == "__main__":
 
     # Save data based on the output type
     if FORMAT_OUTPUT_TYPE == 'excel':
-        save_excel(stats_data, FILENAME_OUTPUT)
-        # import_excel_to_sheets(f'{FILENAME_OUTPUT}.xlsx', FILENAME_OUTPUT, GSHEET_NBA_MAKU_FOLDER_ID)
+        save_excel(stats_data, FILENAME_OUTPUT)        
     elif FORMAT_OUTPUT_TYPE == 'sheets':
         save_sheets(stats_data, GSHEET_NBA_MAKU_FOLDER_ID, FILENAME_OUTPUT)        
     process_end_time = time.time()

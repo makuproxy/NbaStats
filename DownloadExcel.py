@@ -35,7 +35,8 @@ async def download_file_fake(direct_download_url):
                             with open(suggested_filename, 'wb') as file:
                                 file.write(content)
                             absolute_path = os.path.abspath(suggested_filename)
-                            print(f'Download successful. File saved as: {suggested_filename}')
+                            print(f'Download successful. File saved as: {absolute_path}')
+                            return absolute_path
                     else:
                         print('Error: Download URL not found in metadata.')
 
@@ -50,12 +51,11 @@ async def main():
     # Generate the direct download URL
     direct_download_url = await create_onedrive_directdownload('https://1drv.ms/x/s!Ak0dKSJpYkQFhDLofq7_zWkxYG6L?e=Jlqhsf')
 
-    # Run the event loop for the async function                    
+    # Run the event loop for the async function
     absolute_path = await download_file_fake(direct_download_url)
 
     # Now you can use the 'absolute_path' variable in other methods or export it as needed
     print(f'Absolute path outside download_file_fake: {absolute_path}')
-
 
 # Run the event loop to execute the asynchronous code
 asyncio.run(main())

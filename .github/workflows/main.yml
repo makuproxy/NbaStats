@@ -33,4 +33,4 @@ jobs:
 
       - name: Run Your Script
         run: |
-          python DownloadExcel.py
+          python Runner.py

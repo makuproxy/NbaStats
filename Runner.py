@@ -11,6 +11,7 @@ from google.oauth2 import service_account
 from dotenv import load_dotenv
 import json
 import gspread_dataframe as gd
+from tqdm import tqdm
 
 
 process_start_time = time.time()
@@ -60,8 +61,8 @@ def scrape_data(urls, sheet_suffix, team_data=None):
     # Start the timer
     url_start_time = time.time()
 
-    # Iterate through each URL
-    for url in urls:
+    # Use tqdm to create a dynamic progress bar for the iteration through URLs
+    for url in tqdm(urls, desc=f"Scraping {sheet_suffix}"):
         response = requests.get(url)
         soup = BeautifulSoup(response.text, 'html.parser')
 
@@ -72,9 +73,9 @@ def scrape_data(urls, sheet_suffix, team_data=None):
             main_elements = soup.select("h2, table.basketball")
         elif sheet_suffix in "_ST":
             main_elements = soup.select("h2, table.tablesaw")
-        else: 
+        else:
             main_elements = []
-
+        
         # Extract team name and year from the URL
         url_parts = url.split("/")
         teams_index = url_parts.index("teams")
@@ -95,7 +96,7 @@ def scrape_data(urls, sheet_suffix, team_data=None):
                 # Wrap the HTML string in a StringIO object to remove the FutureWarning
                 team_df = pd.read_html(StringIO(str(main_elements[index + 1])))[0]
                 break
-
+        
         # Add the DataFrame to the dictionary with the team name as the key
         if team_name and team_df is not None:
             if team_name not in team_data:
@@ -103,7 +104,7 @@ def scrape_data(urls, sheet_suffix, team_data=None):
             else:
                 # Concatenate the DataFrame if the team already exists in the dictionary
                 team_data[team_name] = pd.concat([team_data[team_name], team_df])
-
+    
     # Stop the timer
     url_end_time = time.time()
 
@@ -153,7 +154,8 @@ def save_sheets(data, folder_id, sheet_name):
     spread_sheet_helper = None
     update_requests = []
 
-    for index, (team_name, df) in enumerate(data.items(), start=1):
+    # Use tqdm to display a progress bar
+    for index, (team_name, df) in enumerate(tqdm(data.items(), desc="Processing teams"), start=1):
         # Get or create a worksheet with the team name
         try:
             spread_sheet_helper = spread_sheet_main.worksheet(title=team_name)
@@ -184,7 +186,7 @@ def save_sheets(data, folder_id, sheet_name):
         if index % 20 == 0:
             print(f"Processed {index} teams.")
             time.sleep(GSHEET_NBA_MAKU_TIME_DELAY)
-    
+
     batch_update_values_request_body = {
         'requests': update_requests
     }
@@ -193,9 +195,10 @@ def save_sheets(data, folder_id, sheet_name):
 
     spread_sheet_main.batch_update(batch_update_values_request_body)
 
-    gs_end_time = time.time()    
-    gs_total_time = gs_end_time - gs_start_time    
+    gs_end_time = time.time()
+    gs_total_time = gs_end_time - gs_start_time
     print(f"Total time taken: {gs_total_time:.2f} seconds to upload all data into Sheets")
+
 
 if __name__ == "__main__":
     # URLs for schedule

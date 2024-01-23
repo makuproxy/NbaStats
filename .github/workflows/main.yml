@@ -16,6 +16,7 @@ jobs:
       FILENAME_OUTPUT: ${{ vars.FILENAME_OUTPUT }}
       GSHEET_NBA_MAKU_TIME_DELAY: ${{ vars.GSHEET_NBA_MAKU_TIME_DELAY }}
       ONEDRIVE_EXCEL_NBA_PATH: ${{ vars.ONEDRIVE_EXCEL_NBA_PATH }}
+      LOCAL_EXCEL_NBA_PATH: ${{ vars.LOCAL_EXCEL_NBA_PATH }}
 
     steps:
       - name: Checkout Repository
@@ -33,4 +34,4 @@ jobs:
 
       - name: Run Your Script
         run: |
-          python Runner.py
+          python GetAndBulkDataFromNbaPage.py

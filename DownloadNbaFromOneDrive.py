@@ -7,6 +7,8 @@ from tqdm import tqdm
 
 load_dotenv()
 
+ONEDRIVE_EXCEL_NBA_PATH = os.getenv("ONEDRIVE_EXCEL_NBA_PATH")
+
 async def create_onedrive_directdownload(onedrive_link):
     data_bytes64 = base64.b64encode(bytes(onedrive_link, 'utf-8'))
     data_bytes64_string = data_bytes64.decode('utf-8').replace('/', '_').replace('+', '-').rstrip("=")
@@ -45,7 +47,7 @@ async def download_file_fake(direct_download_url, progress_bar):
 
                             absolute_path = os.path.abspath(suggested_filename)
                             # Set the absolute path in the .env file                            
-                            set_key('.env', 'ONEDRIVE_EXCEL_NBA_PATH', absolute_path, quote_mode="never")
+                            set_key('.env', 'LOCAL_EXCEL_NBA_PATH', absolute_path, quote_mode="never")
 
                             print(f'\nDownload successful. File saved as: {absolute_path}')
                             return absolute_path
@@ -61,7 +63,7 @@ async def download_file_fake(direct_download_url, progress_bar):
 
 async def main():
     # Generate the direct download URL
-    direct_download_url = await create_onedrive_directdownload('https://1drv.ms/x/s!Ak0dKSJpYkQFhDLofq7_zWkxYG6L?e=Jlqhsf')
+    direct_download_url = await create_onedrive_directdownload(ONEDRIVE_EXCEL_NBA_PATH)
 
     # Run the event loop for the async function
     with tqdm() as progress_bar:

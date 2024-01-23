@@ -1,7 +1,7 @@
 $envFilePath = ".env"
 $envContent = Get-Content $envFilePath
-$onedriveLine = $envContent | Where-Object { $_ -match "ONEDRIVE_EXCEL_NBA_PATH=" }
-$onedriveExcelNbaPath = $onedriveLine -replace "ONEDRIVE_EXCEL_NBA_PATH=", ""
+$onedriveLine = $envContent | Where-Object { $_ -match "LOCAL_EXCEL_NBA_PATH=" }
+$onedriveExcelNbaPath = $onedriveLine -replace "LOCAL_EXCEL_NBA_PATH=", ""
 $onedriveExcelNbaPath = $onedriveExcelNbaPath.Trim()
 
 

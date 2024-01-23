@@ -195,6 +195,9 @@ def save_sheets(data, folder_id, sheet_name):
 
     spread_sheet_main.batch_update(batch_update_values_request_body)
 
+    # In order to add a delay to get last version published in Google Sheet
+    time.sleep(10)
+
     gs_end_time = time.time()
     gs_total_time = gs_end_time - gs_start_time
     print(f"Total time taken: {gs_total_time:.2f} seconds to upload all data into Sheets")

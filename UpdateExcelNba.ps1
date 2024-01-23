@@ -60,4 +60,55 @@ finally {
     [System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null
 
     Write-Host "Excel automation security reverted. Excel saved and closed."
+
+    # Add a delay of 5 seconds
+    Start-Sleep -Seconds 5
+
+    # Wait until all Excel processes are closed with a maximum of 3 attempts
+    $maxAttempts = 3
+    $attempt = 1
+    $excelProcesses = Get-Process -Name Excel -ErrorAction SilentlyContinue
+
+    while ($attempt -le $maxAttempts -and $excelProcesses -ne $null) {
+        Write-Host "Waiting for Excel processes to close (Attempt $attempt of $maxAttempts)..."
+        Start-Sleep -Seconds 5
+        $excelProcesses = Get-Process -Name Excel -ErrorAction SilentlyContinue
+        $attempt++
+    }
+
+    Start-Sleep -Seconds 10
+
+    # If Excel processes are still not closed after the maximum attempts, try to forcefully terminate them
+    if ($excelProcesses -ne $null) {
+        Write-Host "Max attempts reached. Forcibly terminating Excel processes."
+        $excelProcesses | ForEach-Object {
+            if (Get-Process -Id $_.Id -ErrorAction SilentlyContinue) {
+                Stop-Process -Id $_.Id -Force
+            }
+            else {
+                Write-Host "Process with ID $($_.Id) not found. Skipping termination."
+            }
+        }
+    }
+
+    Start-Sleep -Seconds 10
+
+    # Now that Excel processes are closed or forcefully terminated, proceed with the file copy if Excel processes are closed
+    if ($excelProcesses -eq $null) {
+        # Define the target path for copying
+        $targetPath = "C:\Demo\"
+
+        # Extract the filename from the original path
+        $targetFilename = [System.IO.Path]::GetFileName($onedriveExcelNbaPath)
+
+        # Combine the target path and filename
+        $targetFullPath = Join-Path -Path $targetPath -ChildPath $targetFilename
+
+        # Copy the Excel file to the target path and override without confirmation
+        Copy-Item -Path $onedriveExcelNbaPath -Destination $targetFullPath -Force
+        Write-Host "Excel file copied to $targetFullPath"
+    }
+    else {
+        Write-Host "Skipping file copy as Excel processes are still running or could not be terminated."
+    }
 }

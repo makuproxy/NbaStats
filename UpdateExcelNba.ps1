@@ -65,7 +65,7 @@ finally {
     Start-Sleep -Seconds 5
 
     # Wait until all Excel processes are closed with a maximum of 3 attempts
-    $maxAttempts = 3
+    $maxAttempts = 5
     $attempt = 1
     $excelProcesses = Get-Process -Name Excel -ErrorAction SilentlyContinue
 

@@ -12,10 +12,7 @@ from dotenv import load_dotenv
 import json
 import gspread_dataframe as gd
 from tqdm import tqdm
-
-
-
-
+from collections import defaultdict
 
 
 process_start_time = time.time()
@@ -58,32 +55,87 @@ def load_credentials():
 #         spread_sheet_main.del_worksheet(sheet)
 
 
+def group_schedule_urls(schedule_urls):
+    grouped_teams = defaultdict(list)  # Store teams with grouped data
+
+    for url in schedule_urls:
+        # Split the URL to extract team name and year
+        parts = url.split("/teams/")[1].split("/")
+        team_name = parts[0]  # Extract the team name (e.g., "Atlanta-Hawks")
+        year = int(parts[-1])  # Extract the year from the end of the URL
+
+        # Create the new string in the format "(year-1)-(year)"
+        year_string = f"{year - 1}-{year}"
+
+        # Append the year string to the appropriate team group
+        grouped_teams[team_name].append(year_string)
+
+    return grouped_teams
+
+def clean_team_df_for_RegularSeason(team_df):
+    # Drop unnecessary columns
+    team_df = team_df.drop(columns=['Venue', 'Record', 'Atlanta Leaders', 'Opponent Leaders', 'PPP'])
+
+    # Create the new 'OpponentCl' column by cleaning up 'Opponent'
+    team_df['OpponentCl'] = team_df['Opponent'].str.replace(r'[@v\.]', '', regex=True).str.strip()
+
+    # Filter out rows where 'Result' contains 'Postponed'
+    team_df = team_df[~team_df['Result'].str.contains("Postponed", na=False)]
+
+    # Add columns for 'Score 1' and 'Score 2' by extracting numbers from 'Result'
+    team_df['Score 1'] = team_df['Result'].str.extract(r'(\d+)', expand=False).fillna(0).astype(int)
+    team_df['Score 2'] = team_df['Result'].str.extract(r'(\d+)$', expand=False).fillna(0).astype(int)
+
+    # Define a function to calculate team points based on 'Opponent'
+    def calculate_team_points(row):
+        if "@" in row['Opponent']:
+            return int(row['Result'].split("-")[-1].strip())
+        elif "v." in row['Opponent']:
+            return int(row['Result'].split(",")[-1].split("-")[0].strip())
+        return None
+
+    # Add the 'Puntos del equipo' column using apply
+    team_df['Puntos del equipo'] = team_df.apply(calculate_team_points, axis=1)
+
+    # Final adjustments: drop and rename columns
+    team_df = team_df.drop(columns=['Opponent', 'Result'])
+    team_df = team_df.rename(columns={"OpponentCl": "Opponent"})
+
+    return team_df
+
 def scrape_data(urls, sheet_suffix, team_data=None):
     # If team_data is not provided, initialize an empty dictionary
     team_data = team_data or {}
-
+    grouped_data = {} 
+    
     # Start the timer
     url_start_time = time.time()
+    
+    if sheet_suffix in "_RS":        
+        grouped_data = group_schedule_urls(urls)        
 
     # Use tqdm to create a dynamic progress bar for the iteration through URLs
     for url in tqdm(urls, desc=f"Scraping {sheet_suffix}"):
         response = requests.get(url)
         soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Extract team name and year from the URL
+        url_parts = url.split("/")
+        teams_index = url_parts.index("teams")
+        team_base_name = url_parts[teams_index + 1]        
+        team_name = team_base_name + sheet_suffix
 
         # Find all h2 and table elements
         main_elements = None
 
         if sheet_suffix in "_RS":
-            main_elements = soup.select("h2, table.basketball")
+            main_elements = soup.select("h2, table.basketball")            
+            grouped_data.get(team_base_name)            
         elif sheet_suffix in "_ST":
             main_elements = soup.select("h2, table.tablesaw")
         else:
             main_elements = []
-        
-        # Extract team name and year from the URL
-        url_parts = url.split("/")
-        teams_index = url_parts.index("teams")
-        team_name = url_parts[teams_index + 1] + sheet_suffix
+               
 
         # Initialize variables to store team DataFrame
         team_df = None
@@ -94,34 +146,7 @@ def scrape_data(urls, sheet_suffix, team_data=None):
             if ("regular season" in tag_element.get_text(strip=True).lower()) and sheet_suffix == '_RS':
                 # Wrap the HTML string in a StringIO object to remove the FutureWarning
                 team_df = pd.read_html(StringIO(str(main_elements[index + 1])))[0]
-                team_df = team_df.drop(columns=['Venue', 'Record', 'Atlanta Leaders', 'Opponent Leaders', 'PPP'])
-
-                # Add the new column "OpponentCl"
-                team_df['OpponentCl'] = team_df['Opponent'].str.replace(r'[@v\.]', '', regex=True).str.strip()
-
-                # Add the new column "Score 1" by extracting the first number from the "Result" column
-                team_df['Score 1'] = team_df['Result'].str.extract(r'(\d+)', expand=False).astype(int)
-
-                # Add the new column "Score 2" by extracting the last number from the "Result" column
-                team_df['Score 2'] = team_df['Result'].str.extract(r'(\d+)$', expand=False).astype(int)
-
-                # Add the new column "Puntos del equipo"
-                def calculate_team_points(row):
-                    if "@" in row['Opponent']:
-                        # If "@" is present, get the last number after the first "-"
-                        return int(row['Result'].split("-")[-1].strip())
-                    elif "v." in row['Opponent']:
-                        # If "v." is present, get the first number after the ","
-                        return int(row['Result'].split(",")[-1].split("-")[0].strip())
-                    return None
-
-                team_df['Puntos del equipo'] = team_df.apply(calculate_team_points, axis=1)
-
-                team_df = team_df.drop(columns=['Opponent', 'Result'])
-                team_df = team_df.rename(columns={
-                    "OpponentCl": "Opponent"
-                })
-
+                team_df = clean_team_df_for_RegularSeason(team_df)
                 break
 
             if ("regular season team stats" in tag_element.get_text(strip=True).lower()) and sheet_suffix == '_ST':
@@ -238,190 +263,21 @@ def save_sheets(data, folder_id, sheet_name):
 if __name__ == "__main__":
     # URLs for schedule
     schedule_urls = [
-        # "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2021",
+        "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2021" #,
         # "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2022",
         # "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2023",
-        "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2024" #,
+        # "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2024",
         # "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2025",
         # "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2021",
         # "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Brooklyn-Nets/38/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Brooklyn-Nets/38/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Brooklyn-Nets/38/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Brooklyn-Nets/38/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Brooklyn-Nets/38/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Charlotte-Hornets/3/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Charlotte-Hornets/3/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Charlotte-Hornets/3/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Charlotte-Hornets/3/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Charlotte-Hornets/3/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Chicago-Bulls/4/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Chicago-Bulls/4/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Chicago-Bulls/4/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Chicago-Bulls/4/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Chicago-Bulls/4/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Cleveland-Cavaliers/5/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Cleveland-Cavaliers/5/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Cleveland-Cavaliers/5/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Cleveland-Cavaliers/5/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Cleveland-Cavaliers/5/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Dallas-Mavericks/6/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Dallas-Mavericks/6/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Dallas-Mavericks/6/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Dallas-Mavericks/6/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Dallas-Mavericks/6/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Denver-Nuggets/7/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Denver-Nuggets/7/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Denver-Nuggets/7/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Denver-Nuggets/7/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Denver-Nuggets/7/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Detroit-Pistons/8/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Detroit-Pistons/8/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Detroit-Pistons/8/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Detroit-Pistons/8/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Detroit-Pistons/8/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Golden-State-Warriors/9/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Golden-State-Warriors/9/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Golden-State-Warriors/9/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Golden-State-Warriors/9/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Golden-State-Warriors/9/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Houston-Rockets/10/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Houston-Rockets/10/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Houston-Rockets/10/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Houston-Rockets/10/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Houston-Rockets/10/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Indiana-Pacers/11/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Indiana-Pacers/11/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Indiana-Pacers/11/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Indiana-Pacers/11/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Indiana-Pacers/11/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Los-Angeles-Clippers/12/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Los-Angeles-Clippers/12/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Los-Angeles-Clippers/12/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Los-Angeles-Clippers/12/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Los-Angeles-Clippers/12/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Los-Angeles-Lakers/13/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Los-Angeles-Lakers/13/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Los-Angeles-Lakers/13/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Los-Angeles-Lakers/13/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Los-Angeles-Lakers/13/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Memphis-Grizzlies/14/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Memphis-Grizzlies/14/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Memphis-Grizzlies/14/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Memphis-Grizzlies/14/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Memphis-Grizzlies/14/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Miami-Heat/15/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Miami-Heat/15/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Miami-Heat/15/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Miami-Heat/15/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Miami-Heat/15/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Milwaukee-Bucks/16/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Milwaukee-Bucks/16/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Milwaukee-Bucks/16/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Milwaukee-Bucks/16/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Milwaukee-Bucks/16/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Minnesota-Timberwolves/17/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Minnesota-Timberwolves/17/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Minnesota-Timberwolves/17/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Minnesota-Timberwolves/17/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Minnesota-Timberwolves/17/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/New-Orleans-Pelicans/19/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/New-Orleans-Pelicans/19/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/New-Orleans-Pelicans/19/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/New-Orleans-Pelicans/19/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/New-Orleans-Pelicans/19/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/New-York-Knicks/20/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/New-York-Knicks/20/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/New-York-Knicks/20/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/New-York-Knicks/20/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/New-York-Knicks/20/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Oklahoma-City-Thunder/33/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Oklahoma-City-Thunder/33/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Oklahoma-City-Thunder/33/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Oklahoma-City-Thunder/33/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Oklahoma-City-Thunder/33/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Orlando-Magic/21/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Orlando-Magic/21/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Orlando-Magic/21/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Orlando-Magic/21/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Orlando-Magic/21/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Philadelphia-Sixers/22/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Philadelphia-Sixers/22/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Philadelphia-Sixers/22/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Philadelphia-Sixers/22/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Philadelphia-Sixers/22/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Phoenix-Suns/23/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Phoenix-Suns/23/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Phoenix-Suns/23/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Phoenix-Suns/23/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Phoenix-Suns/23/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Portland-Trail-Blazers/24/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Portland-Trail-Blazers/24/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Portland-Trail-Blazers/24/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Portland-Trail-Blazers/24/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Portland-Trail-Blazers/24/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Sacramento-Kings/25/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Sacramento-Kings/25/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Sacramento-Kings/25/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Sacramento-Kings/25/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Sacramento-Kings/25/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/San-Antonio-Spurs/26/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/San-Antonio-Spurs/26/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/San-Antonio-Spurs/26/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/San-Antonio-Spurs/26/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/San-Antonio-Spurs/26/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Toronto-Raptors/28/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Toronto-Raptors/28/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Toronto-Raptors/28/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Toronto-Raptors/28/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Toronto-Raptors/28/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Utah-Jazz/29/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Utah-Jazz/29/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Utah-Jazz/29/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Utah-Jazz/29/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Utah-Jazz/29/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Washington-Wizards/30/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Washington-Wizards/30/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Washington-Wizards/30/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Washington-Wizards/30/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Washington-Wizards/30/Schedule/2025"
+        # "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2023",        
+        # "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2024",        
+        # "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2025"        
     ]
 
     # URLs for stats
     stats_urls = [
-        "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Stats/2025/Averages/All/points/All/desc/1/Regular_Season" #,
-        # "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Brooklyn-Nets/38/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Charlotte-Hornets/3/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Chicago-Bulls/4/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Cleveland-Cavaliers/5/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Dallas-Mavericks/6/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Denver-Nuggets/7/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Detroit-Pistons/8/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Golden-State-Warriors/9/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Houston-Rockets/10/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Indiana-Pacers/11/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Los-Angeles-Clippers/12/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Los-Angeles-Lakers/13/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Memphis-Grizzlies/14/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Miami-Heat/15/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Milwaukee-Bucks/16/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Minnesota-Timberwolves/17/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/New-Orleans-Pelicans/19/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/New-York-Knicks/20/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Oklahoma-City-Thunder/33/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Orlando-Magic/21/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Philadelphia-Sixers/22/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Phoenix-Suns/23/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Portland-Trail-Blazers/24/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Sacramento-Kings/25/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/San-Antonio-Spurs/26/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Toronto-Raptors/28/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Utah-Jazz/29/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-        # "https://basketball.realgm.com/nba/teams/Washington-Wizards/30/Stats/2025/Averages/All/points/All/desc/1/Regular_Season"
+        "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Stats/2025/Averages/All/points/All/desc/1/Regular_Season"
     ]
 
     # Scrape and save schedule data

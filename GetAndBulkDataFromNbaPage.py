@@ -23,7 +23,7 @@ from nba_api.stats.endpoints import boxscoretraditionalv2
 process_start_time = time.time()
 
 all_static_teams = helper.get_teams()
-
+# pd.set_option('display.max_rows', None)
 
 load_dotenv()
 
@@ -117,8 +117,8 @@ def clean_team_df_for_RegularSeason(team_df, year_per_url):
     team_df = team_df.rename(columns={"OpponentCl": "Opponent"})
 
     team_df['url_year'] = year_per_url
-    team_df['DateFormated'] = pd.to_datetime(team_df['Date']).dt.strftime('%m/%d/%Y')
-    
+    team_df['DateFormated'] = pd.to_datetime(team_df['Date'], errors='coerce').dt.strftime('%m/%d/%Y')
+
 
     return team_df
 
@@ -357,16 +357,16 @@ def save_sheets(data, folder_id, sheet_name):
 if __name__ == "__main__":
     # # URLs for schedule
     # schedule_urls = [
-    #     "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2021" ,
-    #     "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2022",
-    #     "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2023",
-    #     "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2024",
-    #     "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2025",
-    #     "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2021",
-    #     "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2022",
-    #     "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2023" #,
-    #     # "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2024",        
-    #     # "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2025"        
+    #     # "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2021" ,
+    #     # "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2022",
+    #     # "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2023",
+    #     # "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2024",
+    #     # "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2025",
+    #     # "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2021",
+    #     # "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2022",
+    #     "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2023",
+    #     "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2024",        
+    #     "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2025"        
     # ]
 
     # # URLs for stats

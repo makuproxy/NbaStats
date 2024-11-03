@@ -23,6 +23,8 @@ from nba_api.stats.endpoints import boxscoretraditionalv2
 process_start_time = time.time()
 
 all_static_teams = helper.get_teams()
+
+
 # pd.set_option('display.max_rows', None)
 
 load_dotenv()
@@ -101,16 +103,15 @@ def clean_team_df_for_RegularSeason(team_df, year_per_url):
     team_df['Score 1'] = team_df['Result'].str.extract(r'(\d+)', expand=False).fillna(0).astype(int)
     team_df['Score 2'] = team_df['Result'].str.extract(r'(\d+)$', expand=False).fillna(0).astype(int)
 
-    # Define a function to calculate team points based on 'Opponent'
-    def calculate_team_points(row):
-        if "@" in row['Opponent']:
-            return int(row['Result'].split("-")[-1].strip())
-        elif "v." in row['Opponent']:
-            return int(row['Result'].split(",")[-1].split("-")[0].strip())
-        return None
+    # Create 'IsLocal' column based on 'Opponent'
+    team_df['IsLocal'] = team_df['Opponent'].apply(lambda x: "N" if "@" in x else ("Y" if "v." in x else None))
 
-    # Add the 'Puntos del equipo' column using apply
-    team_df['Puntos del equipo'] = team_df.apply(calculate_team_points, axis=1)
+    # # Calculate 'Puntos del equipo' based on 'IsLocal' and 'Result'
+    # team_df['Puntos del equipo'] = team_df.apply(
+    #     lambda row: int(row['Result'].split("-")[-1].strip()) if row['IsLocal'] == "N"
+    #     else int(row['Result'].split(",")[-1].split("-")[0].strip()) if row['IsLocal'] == "Y"
+    #     else None, axis=1
+    # )    
 
     # Final adjustments: drop and rename columns
     team_df = team_df.drop(columns=['Opponent', 'Result'])
@@ -320,7 +321,18 @@ def get_team_game_logs(df, teamId):
         date_from_nullable=min_date
     )
     game_logs_df = team_game_logs.get_data_frames()[0]
+
+    game_logs_df.drop(columns=["W","L","W_PCT","MIN","FGM","FGA","FG_PCT","FG3M","FG3A","FG3_PCT","FTM","FTA","FT_PCT","OREB","DREB","REB","AST","STL","BLK","TOV","PF"], inplace=True)
+
     game_logs_df['GAME_DATE'] = pd.to_datetime(game_logs_df['GAME_DATE'], format='%b %d, %Y').dt.strftime('%m/%d/%Y')
+
+    team_abbr_to_id = {team['abbreviation']: team['id'] for team in all_static_teams}
+    
+    game_logs_df['Opponent_Team_ID'] = game_logs_df['MATCHUP'].str.extract(r'@ (\w+)|vs\. (\w+)', expand=False).bfill(axis=1).iloc[:, 0].map(team_abbr_to_id)
+    
+    game_logs_df.drop(columns=['MATCHUP'], inplace=True)
+
+
     return game_logs_df
 
 

@@ -340,7 +340,45 @@ def get_team_game_logs(df, teamId):
 def fetch_box_score(game_id):
     """Fetch and return the box score for a given game ID."""
     box_score_per_game = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id)
-    return box_score_per_game.get_data_frames()[0]
+
+    result_box_score = box_score_per_game.get_data_frames()[0]
+
+    result_box_score.drop(columns=["TEAM_ABBREVIATION", "TEAM_CITY", "NICKNAME"], inplace=True)    
+
+    # Temporarily simplified format_minutes function
+    def format_minutes(minute_value):
+        """Format the minutes value from string with decimals to MM:SS format."""
+        if pd.isna(minute_value) or not isinstance(minute_value, str):            
+            return np.nan
+        try:
+            # Split the string on the colon to separate minutes and seconds
+            parts = minute_value.split(":")
+            if len(parts) == 2:
+                # Take the part before the decimal as minutes
+                minutes = parts[0].split(".")[0]  # Only keep the whole minutes
+                seconds = parts[1]
+                return f"{int(minutes)}:{seconds.zfill(2)}"  # Format seconds to always have two digits
+            else:                
+                return np.nan
+        except Exception as e:
+            print(f"Error formatting {minute_value}: {e}")
+            return np.nan
+
+
+    # Apply formatting to 'MIN' column
+    result_box_score['MIN'] = result_box_score['MIN'].apply(format_minutes)
+    for col in ['FGM', 'FGA', 'FG3M', 'FG3A', 'FTM', 'FTA', 'OREB', 'DREB', 'REB', 'AST', 'STL', 'BLK', 'TO', 'PF', 'PTS']:
+        result_box_score[col] = result_box_score[col].fillna(0).astype(int).astype(str)
+
+    for col in ['FG_PCT', 'FG3_PCT', 'FT_PCT']:
+        result_box_score[col] = result_box_score[col].apply(
+            lambda x: str(int(x * 100)) if pd.notna(x) and float(x) == 1.0 else f"{x * 100:.1f}" if pd.notna(x) else np.nan
+        )
+    
+    return result_box_score
+    
+
+
 
 
 def scrape_data(urls, sheet_suffix, team_data=None):

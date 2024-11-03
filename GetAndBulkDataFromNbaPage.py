@@ -435,14 +435,16 @@ def get_recent_box_scores(df, game_logs_df, teamIdLookup):
     filtered_games = game_logs_df[game_logs_df['GAME_DATE'].isin(top_5_dates)]
     
     box_scores = []
-    for game_id in filtered_games['Game_ID']:
+    for idx, game_id in enumerate(filtered_games['Game_ID']):
         box_score_df = fetch_box_score(game_id)
-        filtered_box_score_df = box_score_df[box_score_df['TEAM_ID'] == teamIdLookup]
+        opponent_id = filtered_games['Opponent_Team_ID'].iloc[idx]  # Get the opponent ID for the current game
+        filtered_box_score_df = box_score_df[box_score_df['TEAM_ID'] == teamIdLookup].copy()  # Make a copy to avoid the warning
+        
         if not filtered_box_score_df.empty:
+            filtered_box_score_df.loc[:, 'BX_Opponent_Team_ID'] = opponent_id  # Add the opponent ID to the box score
             box_scores.append(filtered_box_score_df)
     
     return box_scores
-
 
 
 def save_excel(data, filename):

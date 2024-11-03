@@ -333,84 +333,65 @@ def fetch_box_score(game_id):
 
 def scrape_data(urls, sheet_suffix, team_data=None):
     team_data = team_data or {}
-    grouped_data = process_grouped_data(urls, sheet_suffix)    
+    grouped_data = process_grouped_data(urls, sheet_suffix)
     teamIds_Dictionary = {team['team_name_hyphen']: team['id'] for team in all_static_teams}
-    new_box_score_entries = {}
     
     # Start the timer
     url_start_time = time.time()
     
     # Loop through URLs with a progress bar
-    # Main processing loop for URLs
     for url in tqdm(urls, desc=f"Scraping {sheet_suffix}"):
         team_name, team_df = process_url(url, sheet_suffix)
         if team_name and team_df is not None:
             update_team_data(team_data, team_name, team_df)
-
     
-    
-
-    
-    
-    
-   # Post-processing: add "seasons" field based on grouped_data
-    for team_name, df in team_data.items():
-        base_team_name = team_name.replace(sheet_suffix, "")        
-        
-        # Add "seasons" field
-        if base_team_name in grouped_data:
-            add_seasons_field(df, base_team_name, grouped_data)
-            
-            teamIdLookup = teamIds_Dictionary.get(base_team_name, None)
-            
-            game_logs_df = get_team_game_logs(df, teamIdLookup)
-            
-
-            # Merge game_logs_df into df on the matching date columns
-            merged_df = df.merge(game_logs_df, left_on='DateFormated', right_on='GAME_DATE', how='left')
-            
-            # Update team_data with the merged DataFrame
-            team_data[team_name] = merged_df 
-
-            # New part: Create a new entry in team_data for box scores of top 5 most recent dates
-            new_team_key = f"{base_team_name}_BXSC"  # Key for storing the BoxScore results
-            
-            # Get the top 5 most recent dates in "DateFormated"
-            top_5_dates = pd.to_datetime(df['DateFormated'], format='%m/%d/%Y').nlargest(5).dt.strftime('%m/%d/%Y')
-            
-            # Filter game_logs_df by these top 5 dates
-            filtered_games = game_logs_df[game_logs_df['GAME_DATE'].isin(top_5_dates)]
-
-            box_scores = []
-            
-            # Loop over each Game_ID in filtered_games to retrieve box scores
-            for game_id in filtered_games['Game_ID']:
-                # Retrieve the box score for the specific game
-                box_score_df = fetch_box_score(game_id)                
-                
-                # Append the result to the list
-                # Filter box_score_df to include only rows where TEAM_ID matches teamIdLookup
-                filtered_box_score_df = box_score_df[box_score_df['TEAM_ID'] == teamIdLookup]
-                
-                # Append the filtered result to the list if not empty
-                if not filtered_box_score_df.empty:
-                    box_scores.append(filtered_box_score_df)
-            
-            # Concatenate all box scores into a single DataFrame
-            if box_scores:
-                new_box_score_entries[new_team_key] = pd.concat(box_scores, ignore_index=True)
-            
-
-    team_data.update(new_box_score_entries)
-
-
-            
+    # Post-processing: Add seasons and merge game logs
+    process_team_data(team_data, grouped_data, teamIds_Dictionary, sheet_suffix)
 
     # Calculate and print total time taken
     url_total_time = time.time() - url_start_time
     print(f"Total time taken: {url_total_time:.2f} seconds for {sheet_suffix}")
 
     return team_data
+
+def process_team_data(team_data, grouped_data, teamIds_Dictionary, sheet_suffix):
+    new_entries = {}  # Collect new entries here
+    for team_name, df in team_data.items():
+        base_team_name = team_name.replace(sheet_suffix, "")
+        
+        # Add "seasons" field
+        if base_team_name in grouped_data:
+            add_seasons_field(df, base_team_name, grouped_data)
+            teamIdLookup = teamIds_Dictionary.get(base_team_name, None)
+            game_logs_df = get_team_game_logs(df, teamIdLookup)
+            merged_df = merge_game_logs(df, game_logs_df)
+            team_data[team_name] = merged_df
+            
+            # Create new entry for box scores
+            new_team_key = f"{base_team_name}_BXSC"
+            box_scores = get_recent_box_scores(df, game_logs_df, teamIdLookup)
+            
+            if box_scores:
+                new_entries[new_team_key] = pd.concat(box_scores, ignore_index=True)
+
+    # Now update team_data with the new entries
+    team_data.update(new_entries)
+
+def merge_game_logs(df, game_logs_df):
+    return df.merge(game_logs_df, left_on='DateFormated', right_on='GAME_DATE', how='left')
+
+def get_recent_box_scores(df, game_logs_df, teamIdLookup):
+    top_5_dates = pd.to_datetime(df['DateFormated'], format='%m/%d/%Y').nlargest(5).dt.strftime('%m/%d/%Y')
+    filtered_games = game_logs_df[game_logs_df['GAME_DATE'].isin(top_5_dates)]
+    
+    box_scores = []
+    for game_id in filtered_games['Game_ID']:
+        box_score_df = fetch_box_score(game_id)
+        filtered_box_score_df = box_score_df[box_score_df['TEAM_ID'] == teamIdLookup]
+        if not filtered_box_score_df.empty:
+            box_scores.append(filtered_box_score_df)
+    
+    return box_scores
 
 
 
@@ -503,13 +484,13 @@ def save_sheets(data, folder_id, sheet_name):
 if __name__ == "__main__":
     # URLs for schedule
     schedule_urls = [
-        # "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2021" ,
-        # "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2022",
-        # "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2023",
-        # "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2024",
-        # "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2025",
-        # "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2021",
-        # "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2022",
+        "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2021" ,
+        "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2022",
+        "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2023",
+        "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2024",
+        "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2025",
+        "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2021",
+        "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2022",
         "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2023",
         "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2024",        
         "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2025"        
@@ -517,7 +498,8 @@ if __name__ == "__main__":
 
     # URLs for stats
     stats_urls = [
-        "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Stats/2025/Averages/All/points/All/desc/1/Regular_Season"
+        "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
+        "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Stats/2025/Averages/All/points/All/desc/1/Regular_Season"
     ]
 
     # schedule_urls = [

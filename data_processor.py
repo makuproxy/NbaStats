@@ -83,26 +83,6 @@ def extract_team_df(main_elements, sheet_suffix, url_parts):
             return clean_team_df_statics_for_RegularSeason(team_df_st)
     return None
 
-def update_team_data(team_data, team_name, team_df):
-    """Add or update the DataFrame in team_data."""
-    if team_name not in team_data:
-        team_data[team_name] = team_df
-    else:
-        # Concatenate DataFrames if the team already exists
-        team_data[team_name] = pd.concat([team_data[team_name], team_df])
-
-def add_seasons_field(df, base_team_name, grouped_data):
-    """Add seasons field based on grouped_data."""
-    df['seasons'] = df['url_year'].map(
-        lambda year: ", ".join(
-            season["year_string"]
-            for season in grouped_data[base_team_name]
-            if season["year"] == str(year)
-        )
-    )
-
-def merge_game_logs(df, game_logs_df):
-    return df.merge(game_logs_df, left_on='DateFormated', right_on='GAME_DATE', how='left')
 
 def process_url(url, sheet_suffix):
     """Extract team name and data from a URL."""

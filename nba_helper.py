@@ -4,7 +4,6 @@ import pandas as pd
 from nba_api.stats.endpoints import teamgamelog, boxscoretraditionalv2
 from constants import GSHEET_NBA_MAKU_TIME_DELAY
 from helpers import format_minutes
-from data_processor import merge_game_logs, add_seasons_field
 from stats.library import helper
 
 all_static_teams = helper.get_teams()
@@ -149,3 +148,25 @@ def process_team_data(team_data, grouped_data, teamIds_Dictionary, sheet_suffix)
     # Now update team_data with the new entries
     team_data.update(new_entries)
     team_data.update(h2h_entries)
+
+def update_team_data(team_data, team_name, team_df):
+    """Add or update the DataFrame in team_data."""
+    if team_name not in team_data:
+        team_data[team_name] = team_df
+    else:
+        # Concatenate DataFrames if the team already exists
+        team_data[team_name] = pd.concat([team_data[team_name], team_df])
+
+def add_seasons_field(df, base_team_name, grouped_data):
+    """Add seasons field based on grouped_data."""
+    df['seasons'] = df['url_year'].map(
+        lambda year: ", ".join(
+            season["year_string"]
+            for season in grouped_data[base_team_name]
+            if season["year"] == str(year)
+        )
+    )
+
+def merge_game_logs(df, game_logs_df):
+    return df.merge(game_logs_df, left_on='DateFormated', right_on='GAME_DATE', how='left')
+

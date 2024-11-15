@@ -5,12 +5,11 @@ import time
 from tqdm import tqdm
 from stats.library import helper
 from data_processor import (
-    process_grouped_data,
-    update_team_data,
+    process_grouped_data,    
     process_url
 )
 from google_sheets_service import GoogleSheetsService
-from nba_helper import process_team_data
+from nba_helper import process_team_data, update_team_data
 from constants import FILENAME_OUTPUT, FORMAT_OUTPUT_TYPE, GSHEET_NBA_MAKU_FOLDER_ID
 from urls import schedule_urls, stats_urls
 from dotenv import load_dotenv

@@ -3,10 +3,10 @@ import time
 import pandas as pd
 from nba_api.stats.endpoints import teamgamelog, boxscoretraditionalv2
 from constants import GSHEET_NBA_MAKU_TIME_DELAY
-from helpers import format_minutes
-from stats.library import helper
+from helpers import BasketballHelpers
 
-all_static_teams = helper.get_teams()
+
+from constants import ALL_STATIC_TEAMS
 
 def fetch_box_score(game_id):
     """Fetch and return the box score for a given game ID."""
@@ -31,7 +31,7 @@ def fetch_box_score(game_id):
     result_box_score.drop(columns=["TEAM_ABBREVIATION", "TEAM_CITY", "NICKNAME"], inplace=True)    
 
     # Apply formatting to 'MIN' column
-    result_box_score['MIN'] = result_box_score['MIN'].apply(format_minutes)
+    result_box_score['MIN'] = result_box_score['MIN'].apply(BasketballHelpers.format_minutes)
     for col in ['FGM', 'FGA', 'FG3M', 'FG3A', 'FTM', 'FTA', 'OREB', 'DREB', 'REB', 'AST', 'STL', 'BLK', 'TO', 'PF', 'PTS']:
         result_box_score[col] = result_box_score[col].fillna(0).astype(int).astype(str)
 
@@ -92,7 +92,7 @@ def get_team_game_logs(df, teamId):
     game_logs_df.drop(columns=["W", "L", "W_PCT", "MIN", "FGM", "FGA", "FG_PCT", "FG3M", "FG3A", "FG3_PCT", "FTM", "FTA", "FT_PCT", "OREB", "DREB", "REB", "AST", "STL", "BLK", "TOV", "PF"], inplace=True)
     game_logs_df['GAME_DATE'] = pd.to_datetime(game_logs_df['GAME_DATE'], format='%b %d, %Y').dt.strftime('%m/%d/%Y')
 
-    team_abbr_to_id = {team['abbreviation']: team['id'] for team in all_static_teams}
+    team_abbr_to_id = {team['abbreviation']: team['id'] for team in ALL_STATIC_TEAMS}
     game_logs_df['Opponent_Team_ID'] = game_logs_df['MATCHUP'].str.extract(r'@ (\w+)|vs\. (\w+)', expand=False).bfill(axis=1).iloc[:, 0].map(team_abbr_to_id)
     game_logs_df.drop(columns=['MATCHUP'], inplace=True)
 

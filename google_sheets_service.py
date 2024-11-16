@@ -27,11 +27,16 @@ class GoogleSheetsService:
             return self.gc.create(sheet_name, folder_id=self.folder_id)
 
     def clear_all_sheets(self, spread_sheet_main):
+        EXCLUDED_SHEETS = {"Calculo", "Helpers", "Sheet1"} 
         for index, sheet in enumerate(spread_sheet_main.worksheets(), start=1):
+            if sheet.title in EXCLUDED_SHEETS:
+                continue 
+            
             sheet.clear()
-            if index % 20 == 0:
-                print(f"Cleaned {index} teams.")
-                time.sleep(GSHEET_NBA_MAKU_TIME_DELAY)
+            
+            # if index % 20 == 0:
+            #     print(f"Cleaned {index} teams.")
+            #     time.sleep(GSHEET_NBA_MAKU_TIME_DELAY)
 
     def delete_sheets(self, spread_sheet_main):
         for sheet in spread_sheet_main.worksheets():
@@ -79,9 +84,22 @@ class GoogleSheetsService:
         team_groups = all_teams_df.groupby('Team_Name')
 
         for team_name, group in team_groups:
-            num_rows = len(group) + 1
-            num_cols = all_teams_df.shape[1]
-            team_data = [group.columns.tolist()] + group.replace({np.nan: None}).values.tolist()
+            num_rows = len(group) + 1  # +1 for the Team_Name row
+            num_cols = all_teams_df.shape[1] - 1  # Remove 1 to account for Team_Name column being dropped
+            
+            # Get the Team_Name value (this will be inserted above the group)
+            team_name_value = group['Team_Name'].iloc[0]  # Get the first Team_Name value
+            
+            # Create a modified data group by dropping the "Team_Name" column
+            modified_data = group.drop(columns=['Team_Name'])
+
+            # Create the first row with the Team_Name value (insert it at the top)
+            team_name_row = [team_name_value] + [''] * (num_cols - 1)  # Team_Name in the first column, rest empty
+
+            # Prepare the data: the first row will contain the Team_Name, followed by the rest of the group data
+            team_data = [team_name_row] + modified_data.replace({np.nan: None}).values.tolist()
+
+            # Update the worksheet with the new data (including the Team_Name row)
             update_requests.append({
                 'updateCells': {
                     'range': {
@@ -96,8 +114,9 @@ class GoogleSheetsService:
                 }
             })
 
+            # Manage named ranges for each team
             range_name = team_name.replace(' ', '_')
-            
+
             existing_named_ranges = [nr for nr in spread_sheet_main.list_named_ranges() if nr['name'] == range_name]
             if existing_named_ranges:
                 for existing_range in existing_named_ranges:
@@ -107,6 +126,7 @@ class GoogleSheetsService:
                         }
                     })
 
+            # Add named range for the current team
             named_range_request = {
                 "addNamedRange": {
                     "namedRange": {
@@ -123,6 +143,7 @@ class GoogleSheetsService:
             }
             update_requests.append(named_range_request)
 
+            # Adjust the starting row/column for the next team group
             start_col += num_cols + 2
             team_counter += 1
 

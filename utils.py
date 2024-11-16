@@ -25,3 +25,19 @@ class CacheUtils:
         """Ensure the cache directory exists."""
         if not os.path.exists(cache_dir):
             os.makedirs(cache_dir)
+
+    @staticmethod
+    def save_html_to_cache(key, html, cache_dir):
+        """Save HTML content to a cache file identified by key."""
+        file_name = os.path.join(cache_dir, f"{key}.html")
+        with open(file_name, "w", encoding="utf-8") as file:
+            file.write(html)
+
+    @staticmethod
+    def load_html_from_cache(key, cache_dir):
+        """Load HTML content from a cache file identified by key."""
+        file_name = os.path.join(cache_dir, f"{key}.html")
+        if os.path.exists(file_name):
+            with open(file_name, "r", encoding="utf-8") as file:
+                return file.read()
+        return None

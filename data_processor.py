@@ -95,9 +95,6 @@ class DataProcessor:
     @staticmethod
     def process_url(url, sheet_suffix):
         """Extract team name and data from a URL."""
-        # response = requests.get(url)
-        # soup = BeautifulSoup(response.text, 'html.parser')
-        soup = DataFetcher.fetch_html(url)
         
         # Extract team name and year
         url_parts = url.split("/")
@@ -115,6 +112,8 @@ class DataProcessor:
         
         # Define `team_name` for `_RS` or use `"All Teams_ST"` for `_ST`
         team_name = "All Teams_ST" if sheet_suffix == "_ST" else team_base_name + sheet_suffix
+
+        soup = DataFetcher.fetch_html(url, team_name)
 
         # Parse elements and extract team DataFrame
         main_elements = DataProcessor.parse_main_elements(soup, sheet_suffix)

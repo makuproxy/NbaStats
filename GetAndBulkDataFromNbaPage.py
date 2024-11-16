@@ -1,12 +1,11 @@
 import pandas as pd
-import os
 import time
 from tqdm import tqdm
 from data_processor import DataProcessor
 from excel_service import ExcelService
 from google_sheets_service import GoogleSheetsService
 from utils import CacheUtils
-from nba_helper import process_team_data, update_team_data
+from nba_helper import process_team_data, update_team_data, process_team_data_rs
 from constants import (
     FILENAME_OUTPUT,
     FORMAT_OUTPUT_TYPE,
@@ -14,6 +13,7 @@ from constants import (
     ALL_STATIC_TEAMS,
     ENABLE_DATA_CACHE,
     CACHE_DIR,
+    CACHE_FILE,
     CACHE_FILE,
 )
 from urls import schedule_urls, stats_urls
@@ -23,10 +23,8 @@ load_dotenv()
 
 process_start_time = time.time()
 
+
 pd.set_option('display.max_rows', None)
-
-
-
 
 def scrape_data(urls, sheet_suffix, team_data=None):
     team_data = team_data or {}
@@ -49,9 +47,13 @@ def scrape_data(urls, sheet_suffix, team_data=None):
             else:
                 # For non-ST sheets, add or update the team data as usual
                 update_team_data(team_data, team_name, team_df)
-    
+        
     # Post-processing: Add seasons and merge game logs
     process_team_data(team_data, grouped_data, teamIds_Dictionary, sheet_suffix)
+
+    # Process the specific data for keys ending with "_RS"
+    process_team_data_rs(team_data)
+
 
     # Calculate and print total time taken
     url_total_time = time.time() - url_start_time

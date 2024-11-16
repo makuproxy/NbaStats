@@ -135,7 +135,7 @@ def process_team_data(team_data, grouped_data, teamIds_Dictionary, sheet_suffix)
                 game_dates = pd.to_datetime(h2h_games['GAME_DATE'], format='%m/%d/%Y', errors='coerce')
                 
                 # Sort by the converted dates in descending order and select the last 5 games
-                h2h_games = h2h_games.loc[game_dates.sort_values(ascending=False).index].head(5)
+                h2h_games = h2h_games.loc[game_dates.sort_values(ascending=False).index].head(10)
 
                 # Append the last 5 games for each opponent to the combined H2H DataFrame
                 h2h_combined = pd.concat([h2h_combined, h2h_games], ignore_index=True)
@@ -170,3 +170,48 @@ def add_seasons_field(df, base_team_name, grouped_data):
 def merge_game_logs(df, game_logs_df):
     return df.merge(game_logs_df, left_on='DateFormated', right_on='GAME_DATE', how='left')
 
+def process_team_data_rs(team_data):
+    """Processes team data for keys ending with '_RS'."""
+    keys_to_process = [k for k in team_data.keys() if k.endswith("_RS")]
+    for key in keys_to_process:
+        team_df = team_data[key]
+        if "GAME_DATE" in team_df.columns and "Opponent_Team_ID" in team_df.columns:
+            grouped = process_grouped_data(team_df)
+            team_data[key] = grouped
+            
+def process_grouped_data(team_df):
+    """Processes grouped data for a specific team DataFrame."""    
+    team_df["_GAME_DATE_SORT"] = pd.to_datetime(team_df["GAME_DATE"], format='%m/%d/%Y', errors='coerce')
+
+            # Group by Opponent_Team_ID, sort by GAME_DATE, and keep only the top 5 entries per group
+    grouped = (
+        team_df.sort_values(by="_GAME_DATE_SORT", ascending=False)
+        .groupby("Opponent_Team_ID", group_keys=False)
+        .head(5)
+    )    
+
+    calculate_opponent_h2h(grouped)    
+    calculate_last_5_games(grouped)    
+
+    # Drop the temporary sorting column
+    grouped = grouped.drop(columns=["_GAME_DATE_SORT"])
+
+    return grouped
+
+def calculate_opponent_h2h(grouped):
+    """Calculates 'Opponent H2H' for each group."""
+    grouped["Opponent H2H"] = (
+        grouped.groupby("Opponent_Team_ID").apply(
+            lambda g: ((g["Score 1"].astype(float) + g["Score 2"].astype(float)).sum() / 5)
+        ).reindex(grouped["Opponent_Team_ID"]).round(2).values
+    )
+
+def calculate_last_5_games(grouped):
+    """Calculates the '5 Last games' column."""
+    grouped["5 Last games"] = ""
+    most_recent_games = grouped.sort_values(by="_GAME_DATE_SORT", ascending=False).head(5)
+
+    if not most_recent_games.empty:
+        avg_pts = most_recent_games["PTS"].astype(float).mean().round(2)
+        avg_pts = int(avg_pts) if avg_pts.is_integer() else avg_pts
+        grouped.loc[grouped.index[0], "5 Last games"] = avg_pts

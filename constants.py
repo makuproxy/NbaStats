@@ -14,5 +14,7 @@ SCOPE = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis
 ALL_STATIC_TEAMS = helper.get_teams()
 
 ENABLE_DATA_CACHE = os.getenv("ENABLE_DATA_CACHE", "False").lower() == "true"
+ENABLE_HTML_CACHE = os.getenv("ENABLE_HTML_CACHE", "True").lower() == "true"
 CACHE_DIR = "CustomCache"
 CACHE_FILE = os.path.join(CACHE_DIR, "cached_stats_data.json")
+HTML_CACHE_DIR = os.path.join(CACHE_DIR, "html_cache")

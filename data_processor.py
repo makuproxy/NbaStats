@@ -2,7 +2,7 @@ import pandas as pd
 from io import StringIO
 from collections import defaultdict
 from data_fetcher import DataFetcher
-from constants import ALL_STATIC_TEAMS
+from constants import GeneralSetting
 
 class DataProcessor:
     """Processes raw basketball data into cleaned formats."""
@@ -103,7 +103,7 @@ class DataProcessor:
 
         # Map `team_base_name` to the full team name using `all_static_teams`
         team_info = next(
-            (team for team in ALL_STATIC_TEAMS if team['team_name_hyphen'] == team_base_name), None
+            (team for team in GeneralSetting.ALL_STATIC_TEAMS if team['team_name_hyphen'] == team_base_name), None
         )
         
         if not team_info:

@@ -1,6 +1,8 @@
 import gspread
 from google.oauth2.service_account import Credentials
-from constants import GSHEET_NBA_MAKU_CREDENTIALS, SCOPE, GSHEET_NBA_MAKU_TIME_DELAY
+from constants import (
+    GSheetSetting
+)
 import json
 import time
 import pandas as pd
@@ -14,8 +16,8 @@ class GoogleSheetsService:
         self.gc = gspread.authorize(self.load_credentials())
 
     def load_credentials(self):
-        credentials_dict = json.loads(GSHEET_NBA_MAKU_CREDENTIALS)
-        return Credentials.from_service_account_info(credentials_dict, scopes=SCOPE)
+        credentials_dict = json.loads(GSheetSetting.CREDENTIALS)
+        return Credentials.from_service_account_info(credentials_dict, scopes=GSheetSetting.SCOPE)
 
     def open_or_create_spreadsheet(self, sheet_name):
         existing_spreadsheets = self.gc.list_spreadsheet_files(folder_id=self.folder_id)
@@ -27,7 +29,7 @@ class GoogleSheetsService:
             return self.gc.create(sheet_name, folder_id=self.folder_id)
 
     def clear_all_sheets(self, spread_sheet_main):
-        EXCLUDED_SHEETS = {"Calculo", "Helpers", "Sheet1"} 
+        EXCLUDED_SHEETS = {"Calculo", "Helpers", "Sheet1", "NBA_ALL", "TEAMS"}
         for index, sheet in enumerate(spread_sheet_main.worksheets(), start=1):
             if sheet.title in EXCLUDED_SHEETS:
                 continue 
@@ -57,20 +59,40 @@ class GoogleSheetsService:
             if team_name == "All Teams_ST":
                 continue
 
+            # update_requests.append({
+            #     'updateCells': {
+            #         'range': {
+            #             'sheetId': spread_sheet_helper.id,
+            #         },
+            #         'fields': 'userEnteredValue',
+            #         'rows': [{'values': [{'userEnteredValue': {'stringValue': str(value)}} for value in row]} for row in
+            #                  [df.columns.tolist()] + df.replace({np.nan: None}).values.tolist()]
+            #     }
+            # })
+
+            # Prepare rows for Google Sheets, respecting data types
+            rows = [{'values': [
+                {
+                    'userEnteredValue': (
+                        {'numberValue': value} if isinstance(value, (int, float)) and not pd.isna(value)
+                        else {'stringValue': str(value) if value is not None else ''}
+                    )
+                } for value in row
+            ]} for row in [df.columns.tolist()] + df.replace({np.nan: None}).values.tolist()]
+
             update_requests.append({
                 'updateCells': {
                     'range': {
                         'sheetId': spread_sheet_helper.id,
                     },
                     'fields': 'userEnteredValue',
-                    'rows': [{'values': [{'userEnteredValue': {'stringValue': str(value)}} for value in row]} for row in
-                             [df.columns.tolist()] + df.replace({np.nan: None}).values.tolist()]
+                    'rows': rows
                 }
             })
 
             if index % 20 == 0:
                 print(f"Processed {index} teams.")
-                time.sleep(GSHEET_NBA_MAKU_TIME_DELAY)
+                time.sleep(GSheetSetting.TIME_DELAY)
         return update_requests
 
     def process_all_teams_st(self, spread_sheet_main, all_teams_df):

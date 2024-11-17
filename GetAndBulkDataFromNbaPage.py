@@ -7,14 +7,10 @@ from google_sheets_service import GoogleSheetsService
 from utils import CacheUtils
 from nba_helper import process_team_data, update_team_data, process_team_data_rs
 from constants import (
-    FILENAME_OUTPUT,
-    FORMAT_OUTPUT_TYPE,
-    GSHEET_NBA_MAKU_FOLDER_ID,
-    ALL_STATIC_TEAMS,
-    ENABLE_DATA_CACHE,
-    CACHE_DIR,
-    CACHE_FILE,
-    CACHE_FILE,
+    GeneralSetting,
+    GSheetSetting,
+    CacheSetting
+
 )
 from urls import schedule_urls, stats_urls
 from dotenv import load_dotenv
@@ -29,7 +25,7 @@ pd.set_option('display.max_rows', None)
 def scrape_data(urls, sheet_suffix, team_data=None):
     team_data = team_data or {}
     grouped_data = DataProcessor.process_grouped_data(urls, sheet_suffix)
-    teamIds_Dictionary = {team['team_name_hyphen']: team['id'] for team in ALL_STATIC_TEAMS}
+    teamIds_Dictionary = {team['team_name_hyphen']: team['id'] for team in GeneralSetting.ALL_STATIC_TEAMS}
     
     # Start the timer
     url_start_time = time.time()
@@ -63,8 +59,8 @@ def scrape_data(urls, sheet_suffix, team_data=None):
 
 if __name__ == "__main__":
 
-    CacheUtils.ensure_cache_directory_exists(CACHE_DIR)
-    stats_data = CacheUtils.load_cached_data(CACHE_FILE) if ENABLE_DATA_CACHE else None
+    CacheUtils.ensure_cache_directory_exists(CacheSetting.CACHE_DIR)
+    stats_data = CacheUtils.load_cached_data(CacheSetting.CACHE_FILE) if CacheSetting.ENABLE_DATA_CACHE else None
 
     if not stats_data:
         # Scrape data if cache is not available
@@ -72,8 +68,8 @@ if __name__ == "__main__":
         stats_data = scrape_data(stats_urls, "_ST", schedule_data)
 
         # Save stats_data to cache if caching is enabled
-        if ENABLE_DATA_CACHE:
-            CacheUtils.save_data_to_cache(stats_data, CACHE_FILE)
+        if CacheSetting.ENABLE_DATA_CACHE:
+            CacheUtils.save_data_to_cache(stats_data, CacheSetting.CACHE_FILE)
 
 
     # current_directory = os.getcwd()
@@ -81,11 +77,11 @@ if __name__ == "__main__":
     # print(f"****>> File Path: {file_path}")
     
     # Save data based on the output type
-    if FORMAT_OUTPUT_TYPE == 'excel':
-        ExcelService.save_excel(stats_data, FILENAME_OUTPUT)        
-    elif FORMAT_OUTPUT_TYPE == 'sheets':
-        sheets_service = GoogleSheetsService(GSHEET_NBA_MAKU_FOLDER_ID)
-        sheets_service.save_sheets(stats_data, FILENAME_OUTPUT)        
+    if GeneralSetting.FORMAT_OUTPUT_TYPE == 'excel':
+        ExcelService.save_excel(stats_data, GeneralSetting.FILENAME_OUTPUT)        
+    elif GeneralSetting.FORMAT_OUTPUT_TYPE == 'sheets':
+        sheets_service = GoogleSheetsService(GSheetSetting.FOLDER_ID)
+        sheets_service.save_sheets(stats_data, GeneralSetting.FILENAME_OUTPUT)        
     process_end_time = time.time()
 
     # Calculate the total time taken

@@ -1,7 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 from utils import CacheUtils
-from constants import HTML_CACHE_DIR, ENABLE_HTML_CACHE
+from constants import CacheSetting
 
 class DataFetcher:
     """Utility class for fetching and parsing HTML data."""    
@@ -12,14 +12,14 @@ class DataFetcher:
         If ENABLE_HTML_CACHE is disabled, always fetch from the network.
         """
         # Ensure the HTML cache directory exists
-        CacheUtils.ensure_cache_directory_exists(HTML_CACHE_DIR)
+        CacheUtils.ensure_cache_directory_exists(CacheSetting.HTML_CACHE_DIR)
 
-        if ENABLE_HTML_CACHE:
+        if CacheSetting.ENABLE_HTML_CACHE:
             # Use team_name for better traceability
             cache_key = f"{team_name}_{url.split('/')[-1]}" if team_name else url
 
             # Try to load the HTML from cache
-            cached_html = CacheUtils.load_html_from_cache(cache_key, HTML_CACHE_DIR)
+            cached_html = CacheUtils.load_html_from_cache(cache_key, CacheSetting.HTML_CACHE_DIR)
             if cached_html:
                 # print(f"Reading from {cache_key}")
                 return BeautifulSoup(cached_html, 'html.parser')
@@ -30,8 +30,8 @@ class DataFetcher:
         html_content = response.text
 
         # Save the fetched HTML to the cache (if enabled)
-        if ENABLE_HTML_CACHE and team_name:
-            CacheUtils.save_html_to_cache(cache_key, html_content, HTML_CACHE_DIR)
+        if CacheSetting.ENABLE_HTML_CACHE and team_name:
+            CacheUtils.save_html_to_cache(cache_key, html_content, CacheSetting.HTML_CACHE_DIR)
 
         # Parse and return the HTML
         return BeautifulSoup(html_content, 'html.parser')

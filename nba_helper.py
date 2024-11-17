@@ -2,11 +2,13 @@ import numpy as np
 import time
 import pandas as pd
 from nba_api.stats.endpoints import teamgamelog, boxscoretraditionalv2
-from constants import GSHEET_NBA_MAKU_TIME_DELAY
+from constants import (
+    GSheetSetting,
+    GeneralSetting
+)
 from helpers import BasketballHelpers
 
 
-from constants import ALL_STATIC_TEAMS
 
 def fetch_box_score(game_id):
     """Fetch and return the box score for a given game ID."""
@@ -23,7 +25,7 @@ def fetch_box_score(game_id):
         except Exception as e:
             print(f"Attempt {attempt + 1} failed with error: {e}")
             timeout += 15  # Increase timeout by 15 seconds
-            time.sleep(GSHEET_NBA_MAKU_TIME_DELAY)
+            time.sleep(GSheetSetting.TIME_DELAY)
     else:
         raise ConnectionError("Failed to fetch box score after multiple attempts")
 
@@ -84,7 +86,7 @@ def get_team_game_logs(df, teamId):
         except Exception as e:
             print(f"Attempt {attempt + 1} failed with error: {e}")
             timeout += 15  # Increase timeout by 15 seconds
-            time.sleep(GSHEET_NBA_MAKU_TIME_DELAY)
+            time.sleep(GSheetSetting.TIME_DELAY)
     else:
         raise ConnectionError("Failed to fetch team game logs after multiple attempts")
 
@@ -92,8 +94,11 @@ def get_team_game_logs(df, teamId):
     game_logs_df.drop(columns=["W", "L", "W_PCT", "MIN", "FGM", "FGA", "FG_PCT", "FG3M", "FG3A", "FG3_PCT", "FTM", "FTA", "FT_PCT", "OREB", "DREB", "REB", "AST", "STL", "BLK", "TOV", "PF"], inplace=True)
     game_logs_df['GAME_DATE'] = pd.to_datetime(game_logs_df['GAME_DATE'], format='%b %d, %Y').dt.strftime('%m/%d/%Y')
 
-    team_abbr_to_id = {team['abbreviation']: team['id'] for team in ALL_STATIC_TEAMS}
+    team_abbr_to_id = {team['abbreviation']: team['id'] for team in GeneralSetting.ALL_STATIC_TEAMS}
     game_logs_df['Opponent_Team_ID'] = game_logs_df['MATCHUP'].str.extract(r'@ (\w+)|vs\. (\w+)', expand=False).bfill(axis=1).iloc[:, 0].map(team_abbr_to_id)
+
+    game_logs_df['Opponent_Team_ID'] = pd.to_numeric(game_logs_df['Opponent_Team_ID'], errors='coerce')
+
     game_logs_df.drop(columns=['MATCHUP'], inplace=True)
 
     # print(f"End--> get_team_game_logs() for  {teamId}")
@@ -173,25 +178,45 @@ def merge_game_logs(df, game_logs_df):
 def process_team_data_rs(team_data):
     """Processes team data for keys ending with '_RS'."""
     keys_to_process = [k for k in team_data.keys() if k.endswith("_RS")]
+
+    all_static_teams = GeneralSetting.ALL_STATIC_TEAMS
+    id_to_full_name = {team["id"]: team["full_name"] for team in all_static_teams}
+
     for key in keys_to_process:
         team_df = team_data[key]
         if "GAME_DATE" in team_df.columns and "Opponent_Team_ID" in team_df.columns:
+            team_df["Opponent"] = team_df["Opponent_Team_ID"].map(id_to_full_name)
+            
+            columns_to_drop = ["Date", "url_year"]
+            team_df = team_df.drop(columns=[col for col in columns_to_drop if col in team_df.columns])            
+
             grouped = process_grouped_data(team_df)
             team_data[key] = grouped
-            
-def process_grouped_data(team_df):
-    """Processes grouped data for a specific team DataFrame."""    
-    team_df["_GAME_DATE_SORT"] = pd.to_datetime(team_df["GAME_DATE"], format='%m/%d/%Y', errors='coerce')
 
-            # Group by Opponent_Team_ID, sort by GAME_DATE, and keep only the top 5 entries per group
+def process_grouped_data(team_df):
+    """Processes grouped data for a specific team DataFrame."""
+    # Extract the highest season value without modifying the original column
+    highest_season = team_df["seasons"].max()
+
+    # Filter only rows with the highest season
+    filtered_df = team_df[team_df["seasons"] == highest_season].copy()
+
+    # Convert GAME_DATE to datetime for sorting
+    filtered_df["_GAME_DATE_SORT"] = pd.to_datetime(filtered_df["GAME_DATE"], format='%m/%d/%Y', errors='coerce')    
+
+
+    # Group by Opponent_Team_ID and keep the top 5 entries per group
     grouped = (
-        team_df.sort_values(by="_GAME_DATE_SORT", ascending=False)
+        filtered_df.sort_values(by="_GAME_DATE_SORT", ascending=False)
         .groupby("Opponent_Team_ID", group_keys=False)
         .head(5)
-    )    
+    )
 
-    calculate_opponent_h2h(grouped)    
-    calculate_last_5_games(grouped)    
+    # Calculate opponent H2H
+    calculate_opponent_h2h(grouped)
+
+    # Calculate last 5 games
+    calculate_last_5_games(grouped)
 
     # Drop the temporary sorting column
     grouped = grouped.drop(columns=["_GAME_DATE_SORT"])
@@ -202,7 +227,7 @@ def calculate_opponent_h2h(grouped):
     """Calculates 'Opponent H2H' for each group."""
     grouped["Opponent H2H"] = (
         grouped.groupby("Opponent_Team_ID").apply(
-            lambda g: ((g["Score 1"].astype(float) + g["Score 2"].astype(float)).sum() / 5)
+            lambda g: ((g["Score 1"].astype(float) + g["Score 2"].astype(float)).sum() / len(g))
         ).reindex(grouped["Opponent_Team_ID"]).round(2).values
     )
 

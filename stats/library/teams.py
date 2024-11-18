@@ -27,7 +27,7 @@ teams = [
 	[1610612752, "NYK", "Knicks", 1946, "New York", "New York Knicks", "New York", [1970, 1973]],
 	[1610612753, "ORL", "Magic", 1989, "Orlando", "Orlando Magic", "Florida", []],
 	[1610612754, "IND", "Pacers", 1976, "Indiana", "Indiana Pacers", "Indiana", []],
-	[1610612755, "PHI", "76ers", 1949, "Philadelphia", "Philadelphia 76ers", "Pennsylvania", [1955, 1967, 1983]],
+	[1610612755, "PHI", "76ers", 1949, "Philadelphia", "Philadelphia Sixers", "Pennsylvania", [1955, 1967, 1983]],
 	[1610612756, "PHX", "Suns", 1968, "Phoenix", "Phoenix Suns", "Arizona", []],
 	[1610612757, "POR", "Trail Blazers", 1970, "Portland", "Portland Trail Blazers", "Oregon", [1977]],
 	[1610612758, "SAC", "Kings", 1948, "Sacramento", "Sacramento Kings", "California", [1951]],

@@ -23,7 +23,7 @@ def fetch_box_score(game_id):
             result_box_score = box_score_per_game.get_data_frames()[0]
             break  # Exit loop if the request is successful
         except Exception as e:
-            print(f"Attempt {attempt + 1} failed with error: {e}")
+            # print(f"[BOXSCORE] for GAME_ID [{game_id}] --> Attempt {attempt + 1} failed with error: {e}")
             timeout += 15  # Increase timeout by 15 seconds
             time.sleep(GSheetSetting.TIME_DELAY)
     else:
@@ -84,7 +84,7 @@ def get_team_game_logs(df, teamId):
             game_logs_df = team_game_logs.get_data_frames()[0]
             break  # Exit loop if the request is successful
         except Exception as e:
-            print(f"Attempt {attempt + 1} failed with error: {e}")
+            # print(f"[GAMELOG] for TEAM_ID [{teamId}] --> Attempt {attempt + 1} failed with error: {e}")
             timeout += 15  # Increase timeout by 15 seconds
             time.sleep(GSheetSetting.TIME_DELAY)
     else:
@@ -240,3 +240,72 @@ def calculate_last_5_games(grouped):
         avg_pts = most_recent_games["PTS"].astype(float).mean().round(2)
         avg_pts = int(avg_pts) if avg_pts.is_integer() else avg_pts
         grouped.loc[grouped.index[0], "5 Last games"] = avg_pts
+
+
+
+def process_AllTeam_ST(team_data):
+    """
+    Processes the 'All Teams_ST' data by adding '5 Last games' information and
+    dropping the '5 Last games' column for '_RS' datasets.
+    
+    Args:
+    - team_data (dict): Dictionary containing team data (including "All Teams_ST").
+    
+    Returns:
+    - None: The function modifies the team_data dictionary in place.
+    """
+
+    # Step 1: Add "5 Last games" to "All Teams_ST"
+    add_5_last_games_to_all_teams(team_data)
+
+    # Step 2: Drop "5 Last games" for keys ending with "_RS"
+    drop_5_last_games_column(team_data)
+
+
+def drop_5_last_games_column(team_data):
+    # Iterate through all keys in team_data
+    for key, data in team_data.items():
+        # Only drop the "5 Last games" column if the key ends with "_RS"
+        if key.endswith("_RS") and "5 Last games" in data.columns:
+            # Drop the "5 Last games" column
+            team_data[key] = data.drop(columns=["5 Last games"])
+
+
+def add_5_last_games_to_all_teams(team_data):
+    # Ensure "All Teams_ST" exists
+    if "All Teams_ST" not in team_data:
+        return  # No need to print anything, just return
+    
+    # Work specifically on "All Teams_ST"
+    all_teams_st_df = team_data["All Teams_ST"]
+    
+    # Iterate through keys ending with "_RS" (we don't process "All Teams_ST")
+    for key, data in team_data.items():
+        if key == "All Teams_ST":
+            continue  # Skip "All Teams_ST" itself
+        
+        if key.endswith("_RS") and not data.empty:
+            # Get the Team_ID from the data (assuming "Team_ID" is a column in the "_RS" DataFrame)
+            team_id = data["Team_ID"].iloc[0]  # Get the Team_ID from the first row
+            
+            # Find the corresponding team in GeneralSetting.ALL_STATIC_TEAMS by Team_ID
+            matching_team = next((team for team in GeneralSetting.ALL_STATIC_TEAMS if team['id'] == team_id), None)
+            
+            if matching_team:
+                # Get the full team name from the matched team
+                team_name = matching_team['full_name']
+                
+                # Extract the first value from the "5 Last games" column
+                if "5 Last games" in data.columns:
+                    last_games_value = data["5 Last games"].iloc[0]
+                    
+                    # Create a new row for "All Teams_ST"
+                    new_row = pd.DataFrame({
+                        "Totals": ["5 Last games"],
+                        "PPG": [last_games_value],
+                        "Team_Name": [team_name]
+                    })
+                    
+                    # Append the new row to "All Teams_ST"
+                    team_data["All Teams_ST"] = pd.concat([all_teams_st_df, new_row], ignore_index=True)
+                    all_teams_st_df = team_data["All Teams_ST"]  # Update reference for the next iteration

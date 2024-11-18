@@ -5,7 +5,7 @@ from data_processor import DataProcessor
 from excel_service import ExcelService
 from google_sheets_service import GoogleSheetsService
 from utils import CacheUtils
-from nba_helper import process_team_data, update_team_data, process_team_data_rs
+from nba_helper import process_team_data, update_team_data, process_team_data_rs, process_AllTeam_ST
 from constants import (
     GeneralSetting,
     GSheetSetting,
@@ -33,6 +33,7 @@ def scrape_data(urls, sheet_suffix, team_data=None):
     # Loop through URLs with a progress bar
     for url in tqdm(urls, desc=f"Scraping {sheet_suffix}"):
         team_name, team_df = DataProcessor.process_url(url, sheet_suffix)  # Pass all_static_teams for team mapping
+        
         if team_name and team_df is not None:
             if sheet_suffix == "_ST":
                 # Consolidate `_ST` team data under "All Teams_ST"
@@ -50,6 +51,7 @@ def scrape_data(urls, sheet_suffix, team_data=None):
     # Process the specific data for keys ending with "_RS"
     process_team_data_rs(team_data)
 
+    process_AllTeam_ST(team_data)    
 
     # Calculate and print total time taken
     url_total_time = time.time() - url_start_time

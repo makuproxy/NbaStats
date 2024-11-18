@@ -1,12 +1,14 @@
 import numpy as np
 import time
 import pandas as pd
-from nba_api.stats.endpoints import teamgamelog, boxscoretraditionalv2
+from nba_api.stats.endpoints import teamgamelog, boxscoretraditionalv2, scoreboardv2
 from constants import (
     GSheetSetting,
     GeneralSetting
 )
 from helpers import BasketballHelpers
+from datetime import datetime
+import re
 
 
 
@@ -309,3 +311,83 @@ def add_5_last_games_to_all_teams(team_data):
                     # Append the new row to "All Teams_ST"
                     team_data["All Teams_ST"] = pd.concat([all_teams_st_df, new_row], ignore_index=True)
                     all_teams_st_df = team_data["All Teams_ST"]  # Update reference for the next iteration
+
+
+
+def getMatchesByDate(targetDate=None, entity_columns=None):
+    """
+    Fetch NBA game data for a specific date with optional column filtering per entity.
+    
+    Parameters:
+    targetDate (str, optional): The date in 'YYYY-MM-DD' format (e.g., "2024-11-17"). 
+                                Defaults to the current date if not provided.
+    entity_columns (dict, optional): A dictionary where keys are entity names and values are lists of column names to include.
+                                      If the value for an entity is None, all columns are returned for that entity.
+                                      Example: 
+                                      {
+                                          "game_header": ["GAME_ID", "HOME_TEAM_ID"],
+                                          "line_score": None  # Fetch all columns for line_score
+                                      }
+    
+    Returns:
+    dict: A dictionary with entity names as keys and filtered data frames as values.
+    
+    Raises:
+    ValueError: If the targetDate is not in a valid 'YYYY-MM-DD' format.
+    """
+    # Use the current date if targetDate is not provided
+    if targetDate is None:
+        targetDate = datetime.now().strftime('%Y-%m-%d')
+    
+    # Validate date format
+    if not re.match(r'^\d{4}-\d{2}-\d{2}$', targetDate):
+        try:
+            parsed_date = datetime.strptime(targetDate, '%Y-%m-%d')
+            targetDate = parsed_date.strftime('%Y-%m-%d')
+        except ValueError:
+            raise ValueError(f"Invalid date format for targetDate. Expected 'YYYY-MM-DD', but got: {targetDate}")
+
+    # Fetch data from NBA API
+    data = scoreboardv2.ScoreboardV2(game_date=targetDate)
+    
+    # List of valid entities
+    valid_entities = [
+        "available",
+        "east_conf_standings_by_day",
+        "game_header",
+        "last_meeting",
+        "line_score",
+        "series_standings",
+        "team_leaders",
+        "ticket_links",
+        "west_conf_standings_by_day",
+        "win_probability",
+    ]
+    
+    # Default behavior: Fetch all available data if entity_columns is not provided
+    if not entity_columns:
+        entity_columns = {entity: None for entity in valid_entities}
+    
+    # Validate provided entities and process data
+    result = {}
+    for entity, columns in entity_columns.items():
+        if entity not in valid_entities:
+            print(f"Entity '{entity}' is not valid. Available entities are: {valid_entities}")
+            continue
+        
+        # Fetch DataFrame for the entity
+        df = getattr(data, entity).get_data_frame()
+        
+        # If specific columns are requested, filter them
+        if columns:
+            missing_columns = [col for col in columns if col not in df.columns]
+            
+            if missing_columns:
+                print(f"Warning: The following columns are missing in entity '{entity}': {missing_columns}")
+            
+            # Filter DataFrame to requested columns
+            df = df[[col for col in columns if col in df.columns]]
+        
+        result[entity] = df
+    
+    return result

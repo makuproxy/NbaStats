@@ -139,12 +139,18 @@ def save_sheets(data, folder_id, sheet_name):
         spread_sheet_main = gc.create(sheet_name, google_folder_id)
 
     # Clear all sheets in the spreadsheet
-    for index, sheet in enumerate(spread_sheet_main.worksheets(), start=1):
-        sheet.clear()
+    # for index, sheet in enumerate(spread_sheet_main.worksheets(), start=1):
+    #     sheet.clear()
 
-        if index % 20 == 0:
-            print(f"Cleaned {index} teams.")
-            time.sleep(GSHEET_NBA_MAKU_TIME_DELAY)
+    #     if index % 20 == 0:
+    #         print(f"Cleaned {index} teams.")
+    #         time.sleep(GSHEET_NBA_MAKU_TIME_DELAY)
+    EXCLUDED_SHEETS = {"Calculo", "Helpers", "Sheet1", "NBA_ALL", "TEAMS"}
+    for index, sheet in enumerate(spread_sheet_main.worksheets(), start=1):
+        if sheet.title in EXCLUDED_SHEETS:
+            continue 
+        
+        sheet.clear()
 
     # DELETE all sheets in the spreadsheet
     # for sheet in spread_sheet_main.worksheets():

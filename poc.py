@@ -18,6 +18,7 @@ custom_headers = {
 
 # Make the request
 player_info = commonplayerinfo.CommonPlayerInfo(player_id=2544, headers=custom_headers)
+# player_info = commonplayerinfo.CommonPlayerInfo(player_id=2544, headers=custom_headers, proxy='3.90.100.12:80')
 
 print(player_info.get_data_frames()[0])
 

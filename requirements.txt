@@ -13,6 +13,8 @@ openpyxl==3.1.2
 aiohttp==3.9.1
 tqdm==4.66.1
 nba_api==1.6.1
+logging==0.4.9.6
+fake_useragent==1.5.1
 # openai==0.27.0
 # pandas==2.1.4
 # numpy==1.26.3

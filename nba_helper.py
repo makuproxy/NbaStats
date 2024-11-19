@@ -9,23 +9,43 @@ from constants import (
 from helpers import BasketballHelpers
 from datetime import datetime
 import re
+import logging
+from logging_config import setup_logging
+from fake_useragent import UserAgent
 
-
+setup_logging()
+logger = logging.getLogger(__name__)
 
 def fetch_box_score(game_id):
     """Fetch and return the box score for a given game ID."""
     max_retries = 3
     timeout = 75
 
-    print(f"Begin--> fetch_box_score() for  {game_id}")
+    ua = UserAgent()
+
+    # Define custom headers
+    custom_headers = {
+        'User-Agent': ua.random,
+        'Accept': 'application/json, text/plain, */*',
+        'Referer': 'https://www.nba.com/',
+        'Origin': 'https://www.nba.com',
+        'Host': 'stats.nba.com',
+        'Connection': 'keep-alive',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Language': 'en-US,en;q=0.9',
+    }
+
+    # print(f"Begin--> fetch_box_score() for  {game_id}")
+    # logger.info(f"Begin--> fetch_box_score() for  {game_id}")
 
     for attempt in range(max_retries):
         try:
-            box_score_per_game = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, timeout=timeout)
+            box_score_per_game = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, headers=custom_headers, timeout=timeout)
             result_box_score = box_score_per_game.get_data_frames()[0]
             break  # Exit loop if the request is successful
         except Exception as e:
-            print(f"[BOXSCORE] for GAME_ID [{game_id}] --> Attempt {attempt + 1} failed with error: {e}")
+            # print(f"[BOXSCORE] for GAME_ID [{game_id}] --> Attempt {attempt + 1} failed with error: {e}")
+            logger.error(f"[BOXSCORE] for GAME_ID [{game_id}] --> Attempt {attempt + 1} failed with error: {e}")
             timeout += 15  # Increase timeout by 15 seconds
             time.sleep(GSheetSetting.TIME_DELAY)
     else:
@@ -45,7 +65,8 @@ def fetch_box_score(game_id):
         )
     
 
-    print(f"End--> fetch_box_score() for  {game_id}")
+    # print(f"End--> fetch_box_score() for  {game_id}")
+    # logger.info(f"End--> fetch_box_score() for  {game_id}")
 
     return result_box_score
 
@@ -70,8 +91,22 @@ def get_team_game_logs(df, teamId):
     min_date = pd.to_datetime(df['DateFormated'], format='%m/%d/%Y').min().strftime('%m/%d/%Y')
     max_retries = 3
     timeout = 75
+    ua = UserAgent()
+
+    # Define custom headers
+    custom_headers = {
+        'User-Agent': ua.random,
+        'Accept': 'application/json, text/plain, */*',
+        'Referer': 'https://www.nba.com/',
+        'Origin': 'https://www.nba.com',
+        'Host': 'stats.nba.com',
+        'Connection': 'keep-alive',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Language': 'en-US,en;q=0.9',
+    }
     
-    print(f"Begin--> get_team_game_logs() for  {teamId}")
+    # print(f"Begin--> get_team_game_logs() for  {teamId}")
+    # logger.info(f"Begin--> get_team_game_logs() for  {teamId}")
 
     for attempt in range(max_retries):
         try:
@@ -81,12 +116,14 @@ def get_team_game_logs(df, teamId):
                 team_id=teamId,
                 league_id_nullable="00",
                 date_from_nullable=min_date,
+                headers=custom_headers,
                 timeout=timeout
             )
             game_logs_df = team_game_logs.get_data_frames()[0]
             break  # Exit loop if the request is successful
         except Exception as e:
-            print(f"[GAMELOG] for TEAM_ID [{teamId}] --> Attempt {attempt + 1} failed with error: {e}")
+            # print(f"[GAMELOG] for TEAM_ID [{teamId}] --> Attempt {attempt + 1} failed with error: {e}")
+            logger.error(f"[GAMELOG] for TEAM_ID [{teamId}] --> Attempt {attempt + 1} failed with error: {e}")
             timeout += 15  # Increase timeout by 15 seconds
             time.sleep(GSheetSetting.TIME_DELAY)
     else:
@@ -103,7 +140,8 @@ def get_team_game_logs(df, teamId):
 
     game_logs_df.drop(columns=['MATCHUP'], inplace=True)
 
-    print(f"End--> get_team_game_logs() for  {teamId}")
+    # print(f"End--> get_team_game_logs() for  {teamId}")
+    # logger.info(f"End--> get_team_game_logs() for  {teamId}")
 
     return game_logs_df
 

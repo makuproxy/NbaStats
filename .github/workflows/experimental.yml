@@ -1,4 +1,4 @@
-name: ExperimentalRunnerNba
+name: Test NBA API Access
 
 on:
   push:
@@ -6,32 +6,61 @@ on:
       - feature/*
 
 jobs:
-  your_job_name:
+  test-nba-api:
     runs-on: ubuntu-latest
 
-    env:
-      GSHEET_NBA_MAKU_CREDENTIALS: ${{ secrets.GSHEET_NBA_MAKU_CREDENTIALS }}
-      GSHEET_NBA_MAKU_FOLDER_ID: ${{ secrets.GSHEET_NBA_MAKU_FOLDER_ID }}
-      FORMAT_OUTPUT_TYPE: ${{ vars.FORMAT_OUTPUT_TYPE }}
-      FILENAME_OUTPUT: ${{ vars.FILENAME_OUTPUT }}
-      GSHEET_NBA_MAKU_TIME_DELAY: ${{ vars.GSHEET_NBA_MAKU_TIME_DELAY }}
-      ONEDRIVE_EXCEL_NBA_PATH: ${{ vars.ONEDRIVE_EXCEL_NBA_PATH }}
-      LOCAL_EXCEL_NBA_PATH: ${{ vars.LOCAL_EXCEL_NBA_PATH }}
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Set Up Python 3.9
-        uses: actions/setup-python@v2
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          python-version: 3.9
+          python-version: 3.10
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install nba_api fake_useragent
 
-      - name: Run Your Script
-        run: |
-          python GetAndBulkDataFromNbaPage.py
+      - name: Run NBA API Test
+        run: python poc.py
+
+
+# name: ExperimentalRunnerNba
+
+# on:
+#   push:
+#     branches:
+#       - feature/*
+
+# jobs:
+#   your_job_name:
+#     runs-on: ubuntu-latest
+
+#     env:
+#       GSHEET_NBA_MAKU_CREDENTIALS: ${{ secrets.GSHEET_NBA_MAKU_CREDENTIALS }}
+#       GSHEET_NBA_MAKU_FOLDER_ID: ${{ secrets.GSHEET_NBA_MAKU_FOLDER_ID }}
+#       FORMAT_OUTPUT_TYPE: ${{ vars.FORMAT_OUTPUT_TYPE }}
+#       FILENAME_OUTPUT: ${{ vars.FILENAME_OUTPUT }}
+#       GSHEET_NBA_MAKU_TIME_DELAY: ${{ vars.GSHEET_NBA_MAKU_TIME_DELAY }}
+#       ONEDRIVE_EXCEL_NBA_PATH: ${{ vars.ONEDRIVE_EXCEL_NBA_PATH }}
+#       LOCAL_EXCEL_NBA_PATH: ${{ vars.LOCAL_EXCEL_NBA_PATH }}
+
+#     steps:
+#       - name: Checkout Repository
+#         uses: actions/checkout@v2
+
+#       - name: Set Up Python 3.9
+#         uses: actions/setup-python@v2
+#         with:
+#           python-version: 3.9
+
+#       - name: Install Dependencies
+#         run: |
+#           python -m pip install --upgrade pip
+#           pip install -r requirements.txt
+
+#       - name: Run Your Script
+#         run: |
+#           python GetAndBulkDataFromNbaPage.py

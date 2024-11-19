@@ -17,7 +17,7 @@ def fetch_box_score(game_id):
     max_retries = 3
     timeout = 75
 
-    # print(f"Begin--> fetch_box_score() for  {game_id}")
+    print(f"Begin--> fetch_box_score() for  {game_id}")
 
     for attempt in range(max_retries):
         try:
@@ -25,7 +25,7 @@ def fetch_box_score(game_id):
             result_box_score = box_score_per_game.get_data_frames()[0]
             break  # Exit loop if the request is successful
         except Exception as e:
-            # print(f"[BOXSCORE] for GAME_ID [{game_id}] --> Attempt {attempt + 1} failed with error: {e}")
+            print(f"[BOXSCORE] for GAME_ID [{game_id}] --> Attempt {attempt + 1} failed with error: {e}")
             timeout += 15  # Increase timeout by 15 seconds
             time.sleep(GSheetSetting.TIME_DELAY)
     else:
@@ -45,7 +45,7 @@ def fetch_box_score(game_id):
         )
     
 
-    # print(f"End--> fetch_box_score() for  {game_id}")
+    print(f"End--> fetch_box_score() for  {game_id}")
 
     return result_box_score
 
@@ -71,7 +71,7 @@ def get_team_game_logs(df, teamId):
     max_retries = 3
     timeout = 75
     
-    # print(f"Begin--> get_team_game_logs() for  {teamId}")
+    print(f"Begin--> get_team_game_logs() for  {teamId}")
 
     for attempt in range(max_retries):
         try:
@@ -86,7 +86,7 @@ def get_team_game_logs(df, teamId):
             game_logs_df = team_game_logs.get_data_frames()[0]
             break  # Exit loop if the request is successful
         except Exception as e:
-            # print(f"[GAMELOG] for TEAM_ID [{teamId}] --> Attempt {attempt + 1} failed with error: {e}")
+            print(f"[GAMELOG] for TEAM_ID [{teamId}] --> Attempt {attempt + 1} failed with error: {e}")
             timeout += 15  # Increase timeout by 15 seconds
             time.sleep(GSheetSetting.TIME_DELAY)
     else:
@@ -103,7 +103,7 @@ def get_team_game_logs(df, teamId):
 
     game_logs_df.drop(columns=['MATCHUP'], inplace=True)
 
-    # print(f"End--> get_team_game_logs() for  {teamId}")
+    print(f"End--> get_team_game_logs() for  {teamId}")
 
     return game_logs_df
 

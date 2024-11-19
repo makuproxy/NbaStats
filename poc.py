@@ -1,44 +1,74 @@
-import random
-from nba_api.stats.endpoints import commonplayerinfo
-from fake_useragent import UserAgent
+import socket
 import logging
-from logging_config import setup_logging
-import http.client 
 
-setup_logging()
+# Setup logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ua = UserAgent()
+def check_dns():
+    try:
+        logger.info("Resolving DNS for stats.nba.com...")
+        ip = socket.gethostbyname("stats.nba.com")
+        logger.info(f"DNS resolved: stats.nba.com -> {ip}")
+    except Exception as e:
+        logger.error(f"DNS resolution failed: {e}")
 
-# custom_headers = {
-#     'User-Agent': ua.random,
-#     'Accept': 'application/json, text/plain, */*',
-#     'Referer': 'https://www.nba.com/',
-#     'Origin': 'https://www.nba.com',
-#     'Host': 'stats.nba.com',
-#     'Connection': 'keep-alive',
-#     'Accept-Encoding': 'gzip, deflate, br',
-#     'Accept-Language': 'en-US,en;q=0.9',
-# }
+def check_tcp_connection():
+    try:
+        logger.info("Attempting to connect to stats.nba.com on port 443...")
+        sock = socket.create_connection(("stats.nba.com", 443), timeout=10)
+        logger.info("TCP connection established!")
+        sock.close()
+    except Exception as e:
+        logger.error(f"TCP connection failed: {e}")
 
-http.client.HTTPConnection.debuglevel = 1 
-logging.basicConfig()
-logging.getLogger().setLevel(logging.DEBUG)
-logging.getLogger("requests.packages.urllib3").setLevel(logging.DEBUG)
+# Run the tests
+check_dns()
+check_tcp_connection()
 
 
-# Make the request
-# player_info = commonplayerinfo.CommonPlayerInfo(player_id=2544, headers=custom_headers, timeout=100)
-player_info = commonplayerinfo.CommonPlayerInfo(player_id=2544, timeout=100)
-# player_info = commonplayerinfo.CommonPlayerInfo(player_id=2544, headers=custom_headers, proxy='3.90.100.12:80')
-logger.info("Print info")
-logger.info("------")
-logger.info("------")
-logger.info("------")
-logger.info("------")
-logger.info(player_info.get_data_frames()[0])
 
-# player_info = commonplayerinfo.CommonPlayerInfo(player_id=2544)
+# import random
+# from nba_api.stats.endpoints import commonplayerinfo
+# from fake_useragent import UserAgent
+# import logging
+# from logging_config import setup_logging
+# import http.client 
+
+# setup_logging()
+# logger = logging.getLogger(__name__)
+
+# # ua = UserAgent()
+
+# # custom_headers = {
+# #     'User-Agent': ua.random,
+# #     'Accept': 'application/json, text/plain, */*',
+# #     'Referer': 'https://www.nba.com/',
+# #     'Origin': 'https://www.nba.com',
+# #     'Host': 'stats.nba.com',
+# #     'Connection': 'keep-alive',
+# #     'Accept-Encoding': 'gzip, deflate, br',
+# #     'Accept-Language': 'en-US,en;q=0.9',
+# # }
+
+# http.client.HTTPConnection.debuglevel = 1 
+# logging.basicConfig()
+# logging.getLogger().setLevel(logging.DEBUG)
+# logging.getLogger("requests.packages.urllib3").setLevel(logging.DEBUG)
+
+
+# # Make the request
+# # player_info = commonplayerinfo.CommonPlayerInfo(player_id=2544, headers=custom_headers, timeout=100)
+# player_info = commonplayerinfo.CommonPlayerInfo(player_id=2544, timeout=100)
+# # player_info = commonplayerinfo.CommonPlayerInfo(player_id=2544, headers=custom_headers, proxy='3.90.100.12:80')
+# logger.info("Print info")
+# logger.info("------")
+# logger.info("------")
+# logger.info("------")
+# logger.info("------")
+# logger.info(player_info.get_data_frames()[0])
+
+# # player_info = commonplayerinfo.CommonPlayerInfo(player_id=2544)
 
 
 

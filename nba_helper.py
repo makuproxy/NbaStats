@@ -12,19 +12,16 @@ import re
 import logging
 from logging_config import setup_logging
 from fake_useragent import UserAgent
+from typing import Callable
 
 setup_logging()
 logger = logging.getLogger(__name__)
 
-def fetch_box_score(game_id):
-    """Fetch and return the box score for a given game ID."""
-    max_retries = 3
-    timeout = 75
 
+def generate_headers() -> dict:
+    """Generate custom headers with a random UserAgent."""
     ua = UserAgent()
-
-    # Define custom headers
-    custom_headers = {
+    return {
         'User-Agent': ua.random,
         'Accept': 'application/json, text/plain, */*',
         'Referer': 'https://www.nba.com/',
@@ -35,21 +32,40 @@ def fetch_box_score(game_id):
         'Accept-Language': 'en-US,en;q=0.9',
     }
 
-    # print(f"Begin--> fetch_box_score() for  {game_id}")
-    # logger.info(f"Begin--> fetch_box_score() for  {game_id}")
+def retry_with_backoff(
+    func: Callable, 
+    max_retries: int = 3, 
+    initial_timeout: int = 75, 
+    backoff_factor: float = 1.5
+):
+    """
+    Retry a function with exponential backoff and jitter.
 
+    :param func: The function to retry.
+    :param max_retries: Maximum number of retry attempts.
+    :param initial_timeout: Initial timeout in seconds.
+    :param backoff_factor: Multiplier for timeout on each retry.
+    :return: Result of the function call.
+    """
+    timeout = initial_timeout
     for attempt in range(max_retries):
         try:
-            box_score_per_game = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, headers=custom_headers, timeout=timeout)
-            result_box_score = box_score_per_game.get_data_frames()[0]
-            break  # Exit loop if the request is successful
+            return func()
         except Exception as e:
-            # print(f"[BOXSCORE] for GAME_ID [{game_id}] --> Attempt {attempt + 1} failed with error: {e}")
-            logger.error(f"[BOXSCORE] for GAME_ID [{game_id}] --> Attempt {attempt + 1} failed with error: {e}")
-            timeout += 15  # Increase timeout by 15 seconds
-            time.sleep(GSheetSetting.TIME_DELAY)
-    else:
-        raise ConnectionError("Failed to fetch box score after multiple attempts")
+            logger.error(f"Attempt {attempt + 1} failed with error: {e}")
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(timeout + np.random.uniform(1, 3))  # Add jitter
+            timeout *= backoff_factor
+
+def fetch_box_score(game_id):
+    """Fetch and return the box score for a given game ID."""
+    def fetch_data():
+        headers = generate_headers()
+        box_score = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, headers=headers, timeout=75)
+        return box_score.get_data_frames()[0]
+    
+    result_box_score = retry_with_backoff(fetch_data)
 
     # Process data as before
     result_box_score.drop(columns=["TEAM_ABBREVIATION", "TEAM_CITY", "NICKNAME"], inplace=True)    
@@ -89,45 +105,20 @@ def get_recent_box_scores(df, game_logs_df, teamIdLookup):
 def get_team_game_logs(df, teamId):
     """Retrieve and format game logs for the team."""
     min_date = pd.to_datetime(df['DateFormated'], format='%m/%d/%Y').min().strftime('%m/%d/%Y')
-    max_retries = 3
-    timeout = 75
-    ua = UserAgent()
-
-    # Define custom headers
-    custom_headers = {
-        'User-Agent': ua.random,
-        'Accept': 'application/json, text/plain, */*',
-        'Referer': 'https://www.nba.com/',
-        'Origin': 'https://www.nba.com',
-        'Host': 'stats.nba.com',
-        'Connection': 'keep-alive',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Accept-Language': 'en-US,en;q=0.9',
-    }
+    def fetch_data():
+        headers = generate_headers()
+        team_game_logs = teamgamelog.TeamGameLog(
+            season="ALL",
+            season_type_all_star="Regular Season",
+            team_id=teamId,
+            league_id_nullable="00",
+            date_from_nullable=min_date,
+            headers=headers,
+            timeout=75
+        )
+        return team_game_logs.get_data_frames()[0]
     
-    # print(f"Begin--> get_team_game_logs() for  {teamId}")
-    # logger.info(f"Begin--> get_team_game_logs() for  {teamId}")
-
-    for attempt in range(max_retries):
-        try:
-            team_game_logs = teamgamelog.TeamGameLog(
-                season="ALL",
-                season_type_all_star="Regular Season",
-                team_id=teamId,
-                league_id_nullable="00",
-                date_from_nullable=min_date,
-                headers=custom_headers,
-                timeout=timeout
-            )
-            game_logs_df = team_game_logs.get_data_frames()[0]
-            break  # Exit loop if the request is successful
-        except Exception as e:
-            # print(f"[GAMELOG] for TEAM_ID [{teamId}] --> Attempt {attempt + 1} failed with error: {e}")
-            logger.error(f"[GAMELOG] for TEAM_ID [{teamId}] --> Attempt {attempt + 1} failed with error: {e}")
-            timeout += 15  # Increase timeout by 15 seconds
-            time.sleep(GSheetSetting.TIME_DELAY)
-    else:
-        raise ConnectionError("Failed to fetch team game logs after multiple attempts")
+    game_logs_df = retry_with_backoff(fetch_data)
 
     # Process data as before
     game_logs_df.drop(columns=["W", "L", "W_PCT", "MIN", "FGM", "FGA", "FG_PCT", "FG3M", "FG3A", "FG3_PCT", "FTM", "FTA", "FT_PCT", "OREB", "DREB", "REB", "AST", "STL", "BLK", "TOV", "PF"], inplace=True)

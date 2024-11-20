@@ -18,3 +18,7 @@ fake_useragent==1.5.1
 # openai==0.27.0
 # pandas==2.1.4
 # numpy==1.26.3
+# google-auth-oauthlib==1.2.0
+# google-auth-httplib2==0.2.0
+# google-api-core==2.15.0
+# google-api-python-client==2.113.0

@@ -29,28 +29,15 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v2
-      
-      - name: Install jq
-        run: sudo apt-get install -y jq      
 
       - name: Authenticate with Google Cloud
         id: auth
         run: |
           # Safely create the JSON file from the secret
-          echo "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}" | base64 -d > /tmp/gcp-key.json
-
-          # Validate the JSON file
-          echo "Validating JSON file..."
-          jq . /tmp/gcp-key.json
+          echo "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}" | base64 -d > /tmp/gcp-key.json          
 
           gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
-          gcloud config set project makurunner-project
-
-      - name: Debug Service Account Key
-        run: |
-          cat /tmp/gcp-key.json
-          echo "Checking if JSON is valid..."
-          jq . /tmp/gcp-key.json
+          gcloud config set project makurunner-project      
           
       - name: Start Google Cloud VM
         id: start-vm
@@ -170,16 +157,19 @@ jobs:
             # Run the Python script
             python3 GetAndBulkDataFromNbaPage.py
           EOF
-
-      - name: Stop Google Cloud VM
-        run: |
-          gcloud compute instances stop makurunner-vm --zone=us-west1-a
-
+          
       - name: Notify Telegram Group
         run: |
           curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
           -d chat_id=${{ vars.TELEGRAM_GROUP_CHAT_ID }} \
           -d text="RunnerNba action completed successfully at $(date)."
+
+      - name: Stop Google Cloud VM
+        if: always()  # Ensure this step always runs
+        run: |
+          gcloud compute instances stop makurunner-vm --zone=us-west1-a
+
+      
         
 
         

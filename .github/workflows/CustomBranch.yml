@@ -37,12 +37,12 @@ jobs:
         id: auth
         run: |
           # Safely create the JSON file from the secret
-          echo "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}" | jq '.' > /tmp/gcp-key.json
+          echo "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}" | base64 -d > /tmp/gcp-key.json
 
           # Validate the JSON file
           echo "Validating JSON file..."
           jq . /tmp/gcp-key.json
-          
+
           gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
           gcloud config set project makurunner-project
 

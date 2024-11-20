@@ -37,7 +37,12 @@ jobs:
         run: |
           echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" | ssh-add -
           ssh-add -l
-
+      
+      - name: Debug environment variables
+        run: |
+          echo "GSHEET_NBA_MAKU_TIME_DELAY: $GSHEET_NBA_MAKU_TIME_DELAY"
+          echo "GSHEET_NBA_MAKU_CREDENTIALS: $GSHEET_NBA_MAKU_CREDENTIALS"
+        
       - name: SSH into Google Cloud VM and Deploy
         run: |
           # Use the branch from the 'workflow_dispatch' input or default to the one that triggered the push event

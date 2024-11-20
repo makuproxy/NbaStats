@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - feature/*  # Triggered on any branch starting with 'feature/'
+  schedule:
+    - cron: '0 14 * * *'  # This runs every day at 10:00 AM UTC        
   workflow_dispatch:   # Allow manual triggering and custom parameters
     inputs:
       branch:
@@ -93,6 +95,12 @@ jobs:
             # Run the Python script
             python3 GetAndBulkDataFromNbaPage.py
           EOF
+
+      - name: Notify Telegram Group
+        run: |
+          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
+          -d chat_id=${{ vars.TELEGRAM_GROUP_CHAT_ID }} \
+          -d text="RunnerNba action completed successfully at $(date)."
         
 
         

@@ -3,7 +3,13 @@ name: ExperimentalRunnerNba
 on:
   push:
     branches:
-      - feature/*
+      - feature/*  # Triggered on any branch starting with 'feature/'
+  workflow_dispatch:   # Allow manual triggering and custom parameters
+    inputs:
+      branch:
+        description: 'Branch to deploy'  # Custom input to specify a branch
+        required: false  # Optional, set to true if you want this to be required
+        default: ${{ github.ref }}  # Default to the branch that triggered the workflow
 
 jobs:
   deploy:
@@ -33,33 +39,54 @@ jobs:
           echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" | ssh-add -
           ssh-add -l  # List all the loaded SSH keys
 
-      - name: SSH into Google Cloud VM and Deploy
-        run: |
-          # SSH into the Google Cloud VM and run the deployment steps
-          ssh -o StrictHostKeyChecking=no github-actions@34.83.36.54 << 'EOF'
-            # Navigate to the repository directory on the VM
-            if [ ! -d "/home/github-actions/NbaStats" ]; then
-              echo "Repository not found. Cloning the repo..."
-              git clone https://github.com/makuproxy/NbaStats.git /home/github-actions/NbaStats
-            else
-              # If the directory exists, pull the latest changes from the feature branch
-              echo "Repository found. Pulling the latest changes..."
+          - name: SSH into Google Cloud VM and Deploy
+          run: |
+            # Use the branch from the 'workflow_dispatch' input or default to the one that triggered the push event
+            BRANCH_NAME="${{ github.event.inputs.branch || github.ref }}"
+            
+            # Strip the 'refs/heads/' prefix to get the actual branch name
+            BRANCH_NAME=${BRANCH_NAME#refs/heads/}
+            
+            echo "Deploying branch: $BRANCH_NAME"
+        
+            ssh -o StrictHostKeyChecking=no github-actions@34.83.36.54 << EOF
+              # Check if Python is installed
+              if ! command -v python3 &>/dev/null; then
+                echo "Python3 is not installed. Installing Python3..."
+                sudo apt-get update
+                sudo apt-get install -y python3 python3-pip python3-venv
+              else
+                echo "Python3 is already installed."
+              fi
+        
+              # Navigate to the repository
               cd /home/github-actions/NbaStats
-              git pull origin feature/*
-            fi
-
-            # Set up Python environment (if needed)
-            cd /home/github-actions/NbaStats
-            python -m venv venv
-            source venv/bin/activate
-
-            # Install dependencies
-            pip install --upgrade pip
-            pip install -r requirements.txt
-
-            # Run the Python script
-            python poc.py
-          EOF
+        
+              # Fetch all branches to ensure we have the latest references
+              git fetch --all
+        
+              # Check if the branch exists locally, and switch to it or create it
+              if git rev-parse --verify $BRANCH_NAME > /dev/null 2>&1; then
+                git checkout $BRANCH_NAME
+              else
+                git checkout -b $BRANCH_NAME origin/$BRANCH_NAME
+              fi
+        
+              # Pull the latest changes for the branch
+              git pull origin $BRANCH_NAME
+        
+              # Set up Python environment
+              python3 -m venv venv
+              source venv/bin/activate
+        
+              # Install dependencies
+              pip install --upgrade pip
+              pip install -r requirements.txt
+        
+              # Run the Python script
+              python3 poc.py
+            EOF
+        
 
 
 

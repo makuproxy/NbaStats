@@ -33,6 +33,12 @@ jobs:
       - name: Install jq
         run: sudo apt-get install -y jq      
 
+      - name: Debug Service Account Key
+        run: |
+          cat /tmp/gcp-key.json
+          echo "Checking if JSON is valid..."
+          jq . /tmp/gcp-key.json
+
       - name: Authenticate with Google Cloud
         id: auth
         run: |
@@ -49,11 +55,7 @@ jobs:
           gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
           gcloud config set project makurunner-project
 
-      - name: Debug Service Account Key
-        run: |
-          cat /tmp/gcp-key.json
-          echo "Checking if JSON is valid..."
-          jq . /tmp/gcp-key.json
+      
           
       - name: Start Google Cloud VM
         id: start-vm

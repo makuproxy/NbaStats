@@ -33,29 +33,24 @@ jobs:
       - name: Install jq
         run: sudo apt-get install -y jq      
 
+      - name: Authenticate with Google Cloud
+        id: auth
+        run: |
+          # Safely create the JSON file from the secret
+          echo "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}" | jq '.' > /tmp/gcp-key.json
+
+          # Validate the JSON file
+          echo "Validating JSON file..."
+          jq . /tmp/gcp-key.json
+          
+          gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+          gcloud config set project makurunner-project
+
       - name: Debug Service Account Key
         run: |
           cat /tmp/gcp-key.json
           echo "Checking if JSON is valid..."
           jq . /tmp/gcp-key.json
-
-      - name: Authenticate with Google Cloud
-        id: auth
-        run: |
-          echo "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}" 
-          echo "--------------"
-          echo "--------------"
-          echo "--------------"
-          echo "${{ secrets.GSHEET_NBA_MAKU_CREDENTIALS }}" 
-          echo "--------------"
-          echo "--------------"
-          echo "--------------"
-
-          printf '%s' "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}" > /tmp/gcp-key.json
-          gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
-          gcloud config set project makurunner-project
-
-      
           
       - name: Start Google Cloud VM
         id: start-vm

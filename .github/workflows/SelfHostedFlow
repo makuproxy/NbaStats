@@ -1,0 +1,27 @@
+name: Test NBA API Access
+
+on:
+  push:
+    branches:
+      - feature/*
+
+jobs:
+  test-nba-api:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Set Up Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install nba_api fake_useragent pandas
+
+      - name: Run NBA API Test
+        run: python poc.py

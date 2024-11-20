@@ -45,7 +45,7 @@ jobs:
           echo "--------------"
           echo "--------------"
 
-          echo "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}" | tr -d '\\n' > /tmp/gcp-key.json
+          printf '%s' "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}" > /tmp/gcp-key.json
           gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
           gcloud config set project makurunner-project
 

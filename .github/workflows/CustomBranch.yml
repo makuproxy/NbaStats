@@ -60,7 +60,7 @@ jobs:
 
           # Wait for the VM to be up and running
           RETRY_COUNT=0
-          MAX_RETRIES=5
+          MAX_RETRIES=7
           SLEEP_TIME=15
           while true; do
             VM_STATUS=$(gcloud compute instances describe makurunner-vm --zone=us-west1-a --format='get(status)')
@@ -94,10 +94,31 @@ jobs:
           echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" | ssh-add -
           ssh-add -l
       
-      - name: Debug environment variables
+      - name: Wait for VM to Be Ready
         run: |
-          echo "GSHEET_NBA_MAKU_TIME_DELAY: $GSHEET_NBA_MAKU_TIME_DELAY"
-          echo "GSHEET_NBA_MAKU_CREDENTIALS: $GSHEET_NBA_MAKU_CREDENTIALS"
+          VM_IP=${{ steps.start-vm.outputs.vm_ip }}
+          echo "Checking if VM is ready at IP: $VM_IP"
+
+          RETRY_COUNT=0
+          MAX_RETRIES=10
+          SLEEP_TIME=15
+
+          while true; do
+            echo "Attempting to connect to $VM_IP via SSH..."
+            if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 github-actions@$VM_IP exit; then
+              echo "VM is ready for SSH connections."
+              break
+            fi
+
+            if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+              echo "VM did not become ready within the allowed time. Exiting."
+              exit 1
+            fi
+
+            echo "VM is not ready yet. Retrying in $SLEEP_TIME seconds..."
+            sleep $SLEEP_TIME
+            ((RETRY_COUNT++))
+          done
         
       - name: SSH into Google Cloud VM and Deploy
         run: |

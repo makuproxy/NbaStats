@@ -11,7 +11,7 @@ class GSheetSetting:
     def __init__(self):
         self.CREDENTIALS = os.getenv("GSHEET_NBA_MAKU_CREDENTIALS")
         self.FOLDER_ID = os.getenv("GSHEET_NBA_MAKU_FOLDER_ID")
-        self.TIME_DELAY = int(os.getenv("GSHEET_NBA_MAKU_TIME_DELAY"))
+        self.TIME_DELAY = int(os.getenv("GSHEET_NBA_MAKU_TIME_DELAY", "45"))
         self.SCOPE = [
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive",

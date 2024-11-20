@@ -9,7 +9,7 @@ on:
       branch:
         description: 'Branch to deploy'  # Custom input to specify a branch
         required: false  # Optional, set to true if you want this to be required
-        default: ${{ github.ref }}  # Default to the branch that triggered the workflow
+        default: 'main'  # Default to the branch that triggered the workflow
 
 jobs:
   deploy:
@@ -33,11 +33,10 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
 
-      # Debugging step to verify that the SSH key is loaded into the ssh-agent
-      - name: Debug SSH private key
+      - name: Debugging SSH private key
         run: |
           echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" | ssh-add -
-          ssh-add -l  # List all the loaded SSH keys
+          ssh-add -l
 
           - name: SSH into Google Cloud VM and Deploy
           run: |
@@ -86,6 +85,8 @@ jobs:
               # Run the Python script
               python3 poc.py
             EOF
+        
+
         
 
 

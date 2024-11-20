@@ -36,14 +36,20 @@ jobs:
       - name: SSH into Google Cloud VM and Deploy
         run: |
           # SSH into the Google Cloud VM and run the deployment steps
-          ssh -o StrictHostKeyChecking=no makubex1719@34.83.36.54 << 'EOF'
+          ssh -o StrictHostKeyChecking=no github-actions@34.83.36.54 << 'EOF'
             # Navigate to the repository directory on the VM
-            cd /home/makubex1719/NbaStats
-
-            # Pull the latest changes from the correct feature branch
-            git pull origin feature/*
+            if [ ! -d "/home/github-actions/NbaStats" ]; then
+              echo "Repository not found. Cloning the repo..."
+              git clone https://github.com/makuproxy/NbaStats.git /home/github-actions/NbaStats
+            else
+              # If the directory exists, pull the latest changes from the feature branch
+              echo "Repository found. Pulling the latest changes..."
+              cd /home/github-actions/NbaStats
+              git pull origin feature/*
+            fi
 
             # Set up Python environment (if needed)
+            cd /home/github-actions/NbaStats
             python -m venv venv
             source venv/bin/activate
 
@@ -54,6 +60,7 @@ jobs:
             # Run the Python script
             python poc.py
           EOF
+
 
 
 

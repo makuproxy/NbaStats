@@ -30,18 +30,25 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v2
 
+      - name: Authenticate with Google Cloud
+        id: auth
+        run: |
+          echo "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}" > /tmp/gcp-key.json
+          gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+          gcloud config set project makurunner-project
+
       - name: Start Google Cloud VM
         id: start-vm
         run: |
           # Start the VM
-          gcloud compute instances start makurunner-vm --zone=us-west1-a --project=makurunner-project
+          gcloud compute instances start makurunner-vm --zone=us-west1-a
 
           # Wait for the VM to be up and running
           RETRY_COUNT=0
-          MAX_RETRIES=7
-          SLEEP_TIME=25
+          MAX_RETRIES=5
+          SLEEP_TIME=15
           while true; do
-            VM_STATUS=$(gcloud compute instances describe makurunner-vm --zone=us-west1-a --project=makurunner-project --format='get(status)')
+            VM_STATUS=$(gcloud compute instances describe makurunner-vm --zone=us-west1-a --format='get(status)')
             if [ "$VM_STATUS" == "RUNNING" ]; then
               echo "VM is up and running."
               break
@@ -58,7 +65,7 @@ jobs:
           done
 
           # Get the new external IP
-          EXTERNAL_IP=$(gcloud compute instances describe makurunner-vm --zone=us-west1-a --project=makurunner-project --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+          EXTERNAL_IP=$(gcloud compute instances describe makurunner-vm --zone=us-west1-a --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
           echo "External IP: $EXTERNAL_IP"
           echo "::set-output name=vm_ip::$EXTERNAL_IP"
 
@@ -99,7 +106,7 @@ jobs:
             else
               echo "Python3.9 is already installed."
             fi
-
+      
             # Navigate to the repository      
             cd /home/github-actions/NbaStats
 
@@ -130,7 +137,7 @@ jobs:
 
       - name: Stop Google Cloud VM
         run: |
-          gcloud compute instances stop makurunner-vm --zone=us-west1-a --project=makurunner-project
+          gcloud compute instances stop makurunner-vm --zone=us-west1-a
 
       - name: Notify Telegram Group
         run: |

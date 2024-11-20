@@ -91,18 +91,22 @@ jobs:
           SLEEP_TIME=15
           CONNECT_TIMEOUT=10
       
+          # Ensure script does not exit on non-zero status
+          set +e
+      
           while true; do
             echo "Attempting to connect to $VM_IP via SSH... (Retry $((RETRY_COUNT + 1))/$MAX_RETRIES)"
-            
-            # Capture SSH exit status instead of letting the script fail
+      
+            # Try to SSH and capture the exit code
             ssh -o StrictHostKeyChecking=no -o ConnectTimeout=$CONNECT_TIMEOUT github-actions@$VM_IP exit
             SSH_STATUS=$?
+      
+            # Log the exit status for visibility
+            echo "SSH connection exit status: $SSH_STATUS"
       
             if [ $SSH_STATUS -eq 0 ]; then
               echo "VM is ready for SSH connections."
               break
-            else
-              echo "SSH connection failed with status $SSH_STATUS."
             fi
       
             if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
@@ -115,6 +119,7 @@ jobs:
             ((RETRY_COUNT++))
           done
         shell: bash
+        
         
         
       - name: SSH into Google Cloud VM and Deploy

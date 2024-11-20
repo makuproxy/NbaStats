@@ -29,14 +29,23 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v2
+      
+      - name: Install jq
+        run: sudo apt-get install -y jq      
 
       - name: Authenticate with Google Cloud
         id: auth
         run: |
-          echo "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}" > /tmp/gcp-key.json
+          echo "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}" | tr -d '\\n' > /tmp/gcp-key.json
           gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
           gcloud config set project makurunner-project
 
+      - name: Debug Service Account Key
+        run: |
+          cat /tmp/gcp-key.json
+          echo "Checking if JSON is valid..."
+          jq . /tmp/gcp-key.json
+          
       - name: Start Google Cloud VM
         id: start-vm
         run: |

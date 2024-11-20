@@ -5,7 +5,7 @@ on:
     branches:
       - feature/*  # Triggered on any branch starting with 'feature/'
   schedule:
-    - cron: '0 14 * * *'  # This runs every day at 10:00 AM UTC        
+    - cron: '0 14 * * *'  # This runs every day at 10:00 AM UTC
   workflow_dispatch:   # Allow manual triggering and custom parameters
     inputs:
       branch:
@@ -30,6 +30,38 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v2
 
+      - name: Start Google Cloud VM
+        id: start-vm
+        run: |
+          # Start the VM
+          gcloud compute instances start makurunner-vm --zone=us-west1-a --project=makurunner-project
+
+          # Wait for the VM to be up and running
+          RETRY_COUNT=0
+          MAX_RETRIES=7
+          SLEEP_TIME=25
+          while true; do
+            VM_STATUS=$(gcloud compute instances describe makurunner-vm --zone=us-west1-a --project=makurunner-project --format='get(status)')
+            if [ "$VM_STATUS" == "RUNNING" ]; then
+              echo "VM is up and running."
+              break
+            fi
+
+            if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+              echo "VM did not start within the allowed time. Exiting."
+              exit 1
+            fi
+
+            echo "VM is not ready yet. Retrying in $SLEEP_TIME seconds..."
+            sleep $SLEEP_TIME
+            ((RETRY_COUNT++))
+          done
+
+          # Get the new external IP
+          EXTERNAL_IP=$(gcloud compute instances describe makurunner-vm --zone=us-west1-a --project=makurunner-project --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+          echo "External IP: $EXTERNAL_IP"
+          echo "::set-output name=vm_ip::$EXTERNAL_IP"
+
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.5.3
         with:
@@ -49,13 +81,13 @@ jobs:
         run: |
           # Use the branch from the 'workflow_dispatch' input or default to the one that triggered the push event
           BRANCH_NAME="${{ github.event.inputs.branch || github.ref }}"
-          
+
           # Strip the 'refs/heads/' prefix to get the actual branch name
           BRANCH_NAME=${BRANCH_NAME#refs/heads/}
-          
+
           echo "Deploying branch: $BRANCH_NAME"
-      
-          ssh -o StrictHostKeyChecking=no github-actions@34.83.36.54 << EOF
+
+          ssh -o StrictHostKeyChecking=no github-actions@${{ steps.start-vm.outputs.vm_ip }} << EOF
             # Check if Python is installed
             # Check if Python 3.9 is installed, and if not, install it
             if ! command -v python3.9 &>/dev/null; then
@@ -67,34 +99,38 @@ jobs:
             else
               echo "Python3.9 is already installed."
             fi
-      
-            # Navigate to the repository
+
+            # Navigate to the repository      
             cd /home/github-actions/NbaStats
-      
+
             # Fetch all branches to ensure we have the latest references
             git fetch --all
-      
+
             # Check if the branch exists locally, and switch to it or create it
             if git rev-parse --verify $BRANCH_NAME > /dev/null 2>&1; then
               git checkout $BRANCH_NAME
             else
               git checkout -b $BRANCH_NAME origin/$BRANCH_NAME
             fi
-      
+
             # Pull the latest changes for the branch
             git pull origin $BRANCH_NAME
-      
+
             # Set up Python environment
             python3.9 -m venv venv
             source venv/bin/activate
-      
+
             # Install dependencies
             pip install --upgrade pip
             pip install -r requirements.txt
-      
+
             # Run the Python script
             python3 GetAndBulkDataFromNbaPage.py
           EOF
+
+      - name: Stop Google Cloud VM
+        run: |
+          gcloud compute instances stop makurunner-vm --zone=us-west1-a --project=makurunner-project
 
       - name: Notify Telegram Group
         run: |

@@ -137,11 +137,10 @@ def get_team_game_logs(df, teamId):
     return game_logs_df
 
 def process_team_data(team_data, grouped_data, teamIds_Dictionary, sheet_suffix):
-    new_entries = {}  # Collect new entries here
-    h2h_entries = {}
+    new_entries = {}  # Collect new entries here    
     for team_name, df in team_data.items():
         base_team_name = team_name.replace(sheet_suffix, "")
-        
+
         # Add "seasons" field
         if base_team_name in grouped_data:
             add_seasons_field(df, base_team_name, grouped_data)
@@ -156,34 +155,9 @@ def process_team_data(team_data, grouped_data, teamIds_Dictionary, sheet_suffix)
             
             if box_scores:
                 new_entries[new_team_key] = pd.concat(box_scores, ignore_index=True)
-        
-            # Create H2H entries
-            h2h_combined = pd.DataFrame()
-
-            # Get unique opponents from the merged DataFrame
-            unique_opponents = merged_df['Opponent_Team_ID'].unique()
-            for opponent_id in unique_opponents:
-                # Filter last 5 games between the team and each opponent in merged_df
-                h2h_games = merged_df[(merged_df['Team_ID'] == teamIdLookup) &
-                                      (merged_df['Opponent_Team_ID'] == opponent_id)]
-
-                # Convert 'GAME_DATE' to datetime format without modifying h2h_games directly
-                game_dates = pd.to_datetime(h2h_games['GAME_DATE'], format='%m/%d/%Y', errors='coerce')
-                
-                # Sort by the converted dates in descending order and select the last 5 games
-                h2h_games = h2h_games.loc[game_dates.sort_values(ascending=False).index].head(10)
-
-                # Append the last 5 games for each opponent to the combined H2H DataFrame
-                h2h_combined = pd.concat([h2h_combined, h2h_games], ignore_index=True)
-                
-            # Add the consolidated H2H sheet for the base team
-            if not h2h_combined.empty:
-                h2h_key = f"{base_team_name}_H2H"
-                h2h_entries[h2h_key] = h2h_combined
 
     # Now update team_data with the new entries
-    team_data.update(new_entries)
-    team_data.update(h2h_entries)
+    team_data.update(new_entries)    
 
 def update_team_data(team_data, team_name, team_df):
     """Add or update the DataFrame in team_data."""
@@ -195,7 +169,7 @@ def update_team_data(team_data, team_name, team_df):
 
 def add_seasons_field(df, base_team_name, grouped_data):
     """Add seasons field based on grouped_data."""
-    df['seasons'] = df['url_year'].map(
+    df['Seasons'] = df['url_year'].map(
         lambda year: ", ".join(
             season["year_string"]
             for season in grouped_data[base_team_name]
@@ -227,10 +201,10 @@ def process_team_data_rs(team_data):
 def process_grouped_data(team_df):
     """Processes grouped data for a specific team DataFrame."""
     # Extract the highest season value without modifying the original column
-    highest_season = team_df["seasons"].max()
+    highest_season = team_df["Seasons"].max()
 
     # Filter only rows with the highest season
-    filtered_df = team_df[team_df["seasons"] == highest_season].copy()
+    filtered_df = team_df[team_df["Seasons"] == highest_season].copy()
 
     # Convert GAME_DATE to datetime for sorting
     filtered_df["_GAME_DATE_SORT"] = pd.to_datetime(filtered_df["GAME_DATE"], format='%m/%d/%Y', errors='coerce')    

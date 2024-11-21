@@ -32,8 +32,7 @@ class GoogleSheetsService:
         EXCLUDED_SHEETS = {"Calculo", "Helpers", "Sheet1", "NBA_ALL", "TEAMS"}
         for index, sheet in enumerate(spread_sheet_main.worksheets(), start=1):
             if sheet.title in EXCLUDED_SHEETS:
-                continue 
-            
+                continue
             sheet.clear()
             
             # if index % 20 == 0:
@@ -41,6 +40,11 @@ class GoogleSheetsService:
             #     time.sleep(GSHEET_NBA_MAKU_TIME_DELAY)
 
     def delete_sheets(self, spread_sheet_main):
+        # team_names_with_RS = [team['team_name_hyphen'] + '_H2H' for team in GeneralSetting.ALL_STATIC_TEAMS]
+        
+        # for index, sheet in enumerate(spread_sheet_main.worksheets(), start=1):
+        #     if sheet.title in team_names_with_RS:
+        #         sheet.clear()
         for sheet in spread_sheet_main.worksheets():
             if sheet.title != "BaseNoDelete":
                 spread_sheet_main.del_worksheet(sheet)

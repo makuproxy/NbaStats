@@ -162,8 +162,24 @@ jobs:
             # Log the last commit details for debugging
             echo "Last commit details after pull:"
             git log -1 --oneline
-            
+
+            # Set up Python environment
+            python3.9 -m venv venv
+            source venv/bin/activate
+
+            # Install dependencies
+            pip install --upgrade pip
+            pip install -r requirements.txt
+
+            # Run the Python script
+            python3 GetAndBulkDataFromNbaPage.py
           EOF
+          
+      - name: Notify Telegram Group
+        run: |
+          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
+          -d chat_id=${{ vars.TELEGRAM_GROUP_CHAT_ID }} \
+          -d text="RunnerNba action completed successfully at $(date)."
 
       - name: Stop Google Cloud VM
         if: always()  # Ensure this step always runs

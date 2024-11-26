@@ -142,9 +142,17 @@ jobs:
             else
               echo "Python3.9 is already installed."
             fi
+
+            # Log the current directory for debugging
+            echo "Current directory before git operations:"
+            pwd
       
             # Navigate to the repository      
             cd /home/github-actions/NbaStats
+
+            # Log the current directory after changing to the repository
+            echo "Current directory after navigating to the repository:"
+            pwd
 
             # Fetch all branches to ensure we have the latest references
             git fetch --all
@@ -170,6 +178,10 @@ jobs:
             # Install dependencies
             pip install --upgrade pip
             pip install -r requirements.txt
+
+            # Log the current directory where the main file is taken
+            echo "Log the current directory where the main file is taken:"
+            pwd
 
             # Run the Python script
             python3 GetAndBulkDataFromNbaPage.py

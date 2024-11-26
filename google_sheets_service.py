@@ -8,7 +8,12 @@ import time
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+from nba_helper import getMatchesByDate, getMatchesAndResultsFromYesterday
+from datetime import datetime, date
 
+# print(json.dumps(update_requests, indent=4))
+# with open('update_requests.json', 'w') as json_file:
+#     json_file.write(json.dumps(update_requests, indent=4))
 
 class GoogleSheetsService:
     def __init__(self, folder_id):
@@ -29,7 +34,7 @@ class GoogleSheetsService:
             return self.gc.create(sheet_name, folder_id=self.folder_id)
 
     def clear_all_sheets(self, spread_sheet_main):
-        EXCLUDED_SHEETS = {"Calculo", "Helpers", "Sheet1", "NBA_ALL", "TEAMS"}
+        EXCLUDED_SHEETS = {"Calculo", "Helpers", "Sheet1", "NBA_ALL", "RESULTS"}
         for index, sheet in enumerate(spread_sheet_main.worksheets(), start=1):
             if sheet.title in EXCLUDED_SHEETS:
                 continue
@@ -176,6 +181,10 @@ class GoogleSheetsService:
             if team_counter % 5 == 0:
                 start_row += num_rows + 4
                 start_col = 0
+        
+        
+        # pretty_json = json.dumps(update_requests, indent=4)
+        # print(pretty_json)
 
         return update_requests
 
@@ -199,7 +208,373 @@ class GoogleSheetsService:
         batch_update_values_request_body = {'requests': update_requests}
         gs_start_time = time.time()
         spread_sheet_main.batch_update(batch_update_values_request_body)
+
+        matches_day_columns_mapping = {
+                    "A": "GAME_DATE", 
+                    "B": "HOME_TEAM_NAME",                     
+                    "E": "VISITOR_TEAM_NAME"
+                }
+        
+        matches_day_data = getMatchesByDate(
+            entity_columns={
+                "game_header": ["GAME_ID", "HOME_TEAM_ID", "HOME_TEAM_NAME", "VISITOR_TEAM_ID", "VISITOR_TEAM_NAME", "GAME_DATE"]
+                }            
+        )
+        
+        self.bulk_matches_of_the_day(sheet_name, "RESULTS", matches_day_columns_mapping, matches_day_data)
+
+
+        matches_day_before_columns_mapping = {
+                            "A": "GAME_DATE", 
+                            "B": "HOME_TEAM_NAME", 
+                            "C": "PTS_HOME", 
+                            "D": "PTS_VISITOR", 
+                            "E": "VISITOR_TEAM_NAME"
+                        }
+
+        matches_day_before_data = getMatchesAndResultsFromYesterday(
+            entity_columns={
+                "game_header": ["GAME_ID", "HOME_TEAM_ID", "HOME_TEAM_NAME", "VISITOR_TEAM_ID", "VISITOR_TEAM_NAME", "GAME_DATE"],
+                "line_score": ["GAME_ID", "TEAM_ID", "PTS", "GAME_DATE"]
+            }
+        )
+
+
+        self.update_matches_with_results(sheet_name,"RESULTS",matches_day_before_columns_mapping, matches_day_before_data)
+
+
         
         time.sleep(10)
         gs_end_time = time.time()
         print(f"Total time taken: {gs_end_time - gs_start_time:.2f} seconds to upload all data into Sheets")
+
+   
+
+
+
+
+    def bulk_matches_of_the_day(self, spreadsheetName, sheet_name, columns_mapping, data):
+        """
+        Main method to orchestrate the process.
+        :param spreadsheetName: Name of the spreadsheet.
+        :param sheet_name: Name of the sheet.
+        :param columns_mapping: A dictionary mapping column letters to data fields.
+        :param data: The data dictionary, pre-fetched or manipulated, to process.
+        :param targetDate: Optional target date (YYYY-MM-DD) for context. Defaults to None.
+        """
+
+        # Use existing spreadsheet instance or open/create it
+        spread_sheet_main = getattr(self, 'spread_sheet_main', None)
+
+        if not spread_sheet_main:
+            spread_sheet_main = self.open_or_create_spreadsheet(spreadsheetName)
+        
+        sheet = spread_sheet_main.worksheet(sheet_name)
+
+        # Sort columns and find last cell
+        columns_sorted = self._get_sorted_columns(columns_mapping)       
+        
+        last_cells = self._get_last_cells(sheet, columns_sorted)
+
+        # Identify blocks for batch processing
+        blocks = self._identify_contiguous_blocks(columns_sorted)        
+
+        # Prepare update requests based on the provided data
+        update_requests = self._prepare_update_requests(sheet, data, columns_mapping, blocks, last_cells)
+
+        with open('update_requests.json', 'w') as json_file:
+            json_file.write(json.dumps(update_requests, indent=4))
+        self._execute_batch_update(spread_sheet_main, update_requests)
+
+
+    def _get_sorted_columns(self, columns_mapping):
+        # Sort the columns in alphabetical order
+        return sorted(columns_mapping.keys(), key=lambda x: ord(x))
+
+
+    def _get_last_cells(self, sheet, columns_sorted):
+        # Get the last cell with data in each column
+        last_cells = {}
+        for col in columns_sorted:
+            values = sheet.col_values(ord(col) - ord("A") + 1)  # Convert column letter to index
+            last_cells[col] = len(values) if values else 0
+        return last_cells
+
+
+    def _identify_contiguous_blocks(self, columns_sorted):
+        # Identify contiguous blocks of columns
+        column_indices = [ord(col) - ord('A') for col in columns_sorted]
+        blocks = []
+        current_block = [column_indices[0]]
+        
+        for i in range(1, len(column_indices)):
+            if column_indices[i] == column_indices[i - 1] + 1:
+                current_block.append(column_indices[i])
+            else:
+                blocks.append(current_block)
+                current_block = [column_indices[i]]
+        blocks.append(current_block)
+        
+        return blocks
+
+
+    def _prepare_update_requests(self, sheet, data, columns_mapping, blocks, last_cells):
+        # Fetch existing rows from the sheet        
+        existing_rows = self._get_existing_rows(sheet, columns_mapping)
+        
+        # Prepare the update requests for batch_update
+        update_requests = []
+        
+        for entity_name, entity_data in data.items():            
+            entity_columns = entity_data.columns.tolist()
+            if set(columns_mapping.values()).issubset(entity_columns):
+                update_requests.extend(
+                    self._create_update_requests_for_blocks(
+                        sheet, entity_data, columns_mapping, blocks, last_cells, existing_rows
+                    )
+                )
+        return update_requests
+
+
+    # def _get_existing_rows(self, sheet, columns_mapping):
+    #     # Read the existing rows from the sheet for the specified columns
+    #     existing_rows = []
+    #     for col, column_name in columns_mapping.items():
+    #         column_values = sheet.col_values(ord(col) - ord('A') + 1)  # Convert column letter to index
+    #         existing_rows.append(column_values)
+        
+    #     # Transpose the list of columns to get rows
+    #     existing_rows = list(zip(*existing_rows))
+    #     return [dict(zip(columns_mapping.values(), row)) for row in existing_rows]
+
+    def _get_existing_rows(self, sheet, columns_mapping):
+        # Read the existing rows from the sheet for the specified columns
+        existing_rows = []
+        max_length = 0
+        
+        for col, column_name in columns_mapping.items():
+            column_values = sheet.col_values(ord(col) - ord('A') + 1)  # Convert column letter to index
+            max_length = max(max_length, len(column_values))
+            existing_rows.append(column_values)
+        
+        # Pad columns with None to ensure equal length
+        for i in range(len(existing_rows)):
+            if len(existing_rows[i]) < max_length:
+                existing_rows[i].extend([None] * (max_length - len(existing_rows[i])))
+
+        # Transpose the list of columns to get rows
+        existing_rows = list(zip(*existing_rows))
+        return [dict(zip(columns_mapping.values(), row)) for row in existing_rows]
+
+
+
+    def _create_update_requests_for_blocks(self, sheet, entity_data, columns_mapping, blocks, last_cells, existing_rows):
+        # Create update requests for each block of data
+        update_requests = []
+        for block in blocks:
+            block_row_values = []
+            for idx, row in entity_data.iterrows():
+                row_values = []
+                if self._is_valid_row(row, columns_mapping) and not self._is_existing_row(row, columns_mapping, existing_rows):
+                    for col_index in block:
+                        col_letter = chr(col_index + ord('A'))
+                        column_name = columns_mapping.get(col_letter)
+                        row_values.append(self._prepare_cell_value(row, column_name))
+                    if row_values:
+                        block_row_values.append({'values': row_values})
+                
+            if block_row_values:
+                start_col = block[0]
+                end_col = block[-1] + 1
+                start_row = last_cells[chr(block[0] + ord('A'))]
+                update_requests.append(self._build_update_request(sheet, block_row_values, start_row, start_col, end_col))
+        return update_requests
+
+
+    def _is_valid_row(self, row, columns_mapping):
+        # Check if the row contains all required columns with valid data
+        for col, column_name in columns_mapping.items():
+            value = row.get(column_name)
+            if pd.isna(value) or value is None:
+                return False
+        return True
+
+
+    def _is_existing_row(self, row, columns_mapping, existing_rows):
+        # Check if the row already exists in the existing rows
+        row_data = {columns_mapping[col]: row.get(columns_mapping[col]) for col in columns_mapping}
+        return row_data in existing_rows
+
+
+    def _prepare_cell_value(self, row, column_name):
+        # Prepare the cell value for Google Sheets
+        value = row.get(column_name)
+        if isinstance(value, (int, float)) and not pd.isna(value):
+            return {'userEnteredValue': {'numberValue': value}}
+        elif value is not None:
+            return {'userEnteredValue': {'stringValue': str(value)}}
+        return {'userEnteredValue': {'stringValue': ''}}
+
+
+    def _build_update_request(self, sheet, block_row_values, start_row, start_col, end_col):
+        # Build the update request for a specific block
+        return {
+            'updateCells': {
+                'range': {
+                    'sheetId': sheet._properties['sheetId'],
+                    'startRowIndex': start_row,
+                    'endRowIndex': start_row + len(block_row_values),
+                    'startColumnIndex': start_col,
+                    'endColumnIndex': end_col,
+                },
+                'fields': 'userEnteredValue',
+                'rows': block_row_values
+            }
+        }
+
+
+    def _execute_batch_update(self, spread_sheet_main, update_requests):
+        # Execute the batch_update request only if there are requests
+        if not update_requests:
+            print("No updates to perform. Skipping batch_update.")
+            return  # Skip execution if there are no requests
+
+        try:
+            batch_update_values_request_body = {'requests': update_requests}
+            spread_sheet_main.batch_update(batch_update_values_request_body)
+            print("Data successfully updated using batch_update.")
+        except Exception as e:
+            print(f"Error during batch_update: {e}")
+            raise
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    def update_matches_with_results(self, spreadsheetName, sheet_name, columns_mapping, data):
+        """
+        Update existing data in a Google Sheet.
+        :param spreadsheetName: Name of the spreadsheet.
+        :param sheet_name: Name of the sheet.
+        :param columns_mapping: A dictionary mapping column letters to data fields.
+        :param data: The data dictionary containing the updated values.
+        """
+        # Open the spreadsheet and get the worksheet
+        spread_sheet_main = self.open_or_create_spreadsheet(spreadsheetName)
+        sheet = spread_sheet_main.worksheet(sheet_name)
+
+        # Fetch existing rows from the sheet
+        existing_rows = self._get_existing_rows(sheet, columns_mapping)
+
+        # Prepare update requests based on the provided data
+        update_requests = self._prepare_update_requests_for_existing_data(
+            sheet, data, columns_mapping, existing_rows
+        )
+
+        # with open('update_requests.json', 'w') as json_file:
+        #     json_file.write(json.dumps(update_requests, indent=4))        
+
+        # Execute the batch update
+        self._execute_batch_update(spread_sheet_main, update_requests)
+
+    def _prepare_update_requests_for_existing_data(self, sheet, data, columns_mapping, existing_rows):
+        """
+        Prepare update requests for existing data in the sheet.
+        :param sheet: The Google Sheet worksheet object.
+        :param data: The data dictionary with updated values.
+        :param columns_mapping: A dictionary mapping column letters to data fields.
+        :param existing_rows: A list of existing rows in the sheet.
+        :return: A list of update requests.
+        """
+        update_requests = []
+
+        for entity_name, entity_data in data.items():
+            for idx, row in entity_data.iterrows():
+                # Find the matching row in the sheet
+                matching_row_index = self._find_matching_row_index(row, columns_mapping, existing_rows)
+                
+                print("To print match index")
+                print(matching_row_index)
+                print("To print match index")
+                if matching_row_index is not None:
+                    # Create the update request for the matching row
+                    row_values = []
+                    for col, column_name in columns_mapping.items():
+                        cell_value = self._prepare_cell_value(row, column_name)
+                        row_values.append(cell_value)
+
+                    # Build the update request
+                    start_row_index = matching_row_index
+                    start_col_index = ord(list(columns_mapping.keys())[0]) - ord('A')
+                    end_col_index = start_col_index + len(columns_mapping)
+
+                    update_requests.append(self._build_update_request(
+                        sheet,
+                        [{'values': row_values}],
+                        start_row_index,
+                        start_col_index,
+                        end_col_index
+                    ))
+
+        return update_requests
+    
+
+    def _find_matching_row_index(self, row, columns_mapping, existing_rows):
+        """
+        Find the index of the row that matches the given data in the existing rows.
+        :param row: A Pandas Series representing the row data.
+        :param columns_mapping: A dictionary mapping column letters to data fields.
+        :param existing_rows: A list of existing rows in the sheet.
+        :return: The index of the matching row, or None if not found.
+        """
+        row_data = {columns_mapping[col]: row.get(columns_mapping[col]) for col in columns_mapping}
+
+        # Normalize row data for comparison
+        for key in row_data:
+            value = row_data[key]
+            if isinstance(value, str):
+                row_data[key] = value.strip()  # Remove extra spaces
+            elif isinstance(value, (datetime, date)):  # Check for datetime or date
+                row_data[key] = value.strftime('%m/%d/%Y')
+        
+        # Iterate and compare rows
+        for index, existing_row in enumerate(existing_rows):
+            normalized_existing_row = {}
+            for key, value in existing_row.items():
+                if isinstance(value, str):
+                    normalized_existing_row[key] = value.strip()
+                elif isinstance(value, (datetime, date)):  # Check for datetime or date
+                    normalized_existing_row[key] = value.strftime('%m/%d/%Y')
+                else:
+                    normalized_existing_row[key] = value
+            
+            # Adjust comparison to allow None as a wildcard
+            if all(
+                existing_row.get(key) is None or normalized_existing_row.get(key) == row_data[key]
+                for key in row_data
+                if row_data[key] is not None
+            ):
+                return index
+
+        return None
+
+
+
+
+
+

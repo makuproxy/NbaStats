@@ -7,16 +7,19 @@ from constants import (
     GeneralSetting
 )
 from helpers import BasketballHelpers
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 import logging
 from logging_config import setup_logging
 from fake_useragent import UserAgent
 from typing import Callable
 
+
 setup_logging()
 logger = logging.getLogger(__name__)
 
+# pd.set_option('display.max_rows', None)
+# pd.set_option('display.max_columns', None)
 
 def generate_headers() -> dict:
     """Generate custom headers with a random UserAgent."""
@@ -370,7 +373,10 @@ def getMatchesByDate(targetDate=None, entity_columns=None):
     # Default behavior: Fetch all available data if entity_columns is not provided
     if not entity_columns:
         entity_columns = {entity: None for entity in valid_entities}
-    
+
+    # Retrieve the static teams dictionary from GeneralSetting
+    team_dict = {team['id']: team['full_name'] for team in GeneralSetting.ALL_STATIC_TEAMS}    
+
     # Validate provided entities and process data
     result = {}
     for entity, columns in entity_columns.items():
@@ -379,8 +385,8 @@ def getMatchesByDate(targetDate=None, entity_columns=None):
             continue
         
         # Fetch DataFrame for the entity
-        df = getattr(data, entity).get_data_frame()
-        
+        df = getattr(data, entity).get_data_frame()        
+
         # If specific columns are requested, filter them
         if columns:
             missing_columns = [col for col in columns if col not in df.columns]
@@ -390,7 +396,100 @@ def getMatchesByDate(targetDate=None, entity_columns=None):
             
             # Filter DataFrame to requested columns
             df = df[[col for col in columns if col in df.columns]]
-        
-        result[entity] = df
-    
+
+        df = add_team_names(df, columns, team_dict)
+
+        # Add the new column 'GAME_DATE' with the format 'DD/MM/YYYY'
+        df['GAME_DATE'] = datetime.strptime(targetDate, '%Y-%m-%d').strftime('%m/%d/%Y')
+
+        result[entity] = df       
+
     return result
+
+def add_team_names(df, columns, team_dict):
+    """
+    Adds HOME_TEAM_NAME and VISITOR_TEAM_NAME columns to the DataFrame if HOME_TEAM_ID or VISITOR_TEAM_ID exist.
+    
+    Args:
+        df (pd.DataFrame): The DataFrame to process.
+        columns (list): List of requested columns.
+        team_dict (dict): Mapping of team IDs to team names.
+    
+    Returns:
+        pd.DataFrame: The updated DataFrame with team names added if applicable.
+    """
+    if any(col in ["HOME_TEAM_ID", "VISITOR_TEAM_ID"] for col in columns):
+        if "HOME_TEAM_ID" in df.columns:
+            df["HOME_TEAM_NAME"] = df["HOME_TEAM_ID"].apply(lambda team_id: team_dict.get(team_id, team_id))
+        if "VISITOR_TEAM_ID" in df.columns:
+            df["VISITOR_TEAM_NAME"] = df["VISITOR_TEAM_ID"].apply(lambda team_id: team_dict.get(team_id, team_id))
+    return df
+
+
+
+
+def getMatchesForCurrentDay(entity_columns):    
+    return getMatchesByDate(entity_columns=entity_columns)
+
+def getMatchesAndResultsFromYesterday(entity_columns):
+    
+    targetDate = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # Fetch the data
+    data = getMatchesByDate(targetDate=targetDate, entity_columns=entity_columns)
+
+    # Enrich the results if requested
+    if "game_header" in data and "line_score" in data:
+        data["game_header"] = enrich_game_header_with_scores(data)
+
+    data = {"game_header": data.get("game_header", [])}
+    return data    
+
+
+def enrich_game_header_with_scores(data):
+    """
+    Enrich the game_header DataFrame with PTS_HOME and PTS_VISITOR based on line_score data.
+    
+    :param data: A dictionary containing 'game_header' and 'line_score' DataFrames.
+                 Example:
+                 {
+                     "game_header": ["GAME_ID", "HOME_TEAM_ID", "HOME_TEAM_NAME", "VISITOR_TEAM_ID", "VISITOR_TEAM_NAME", "GAME_DATE"],
+                     "line_score": ["GAME_ID", "TEAM_ID", "PTS", "GAME_DATE"]
+                 }
+    :return: Updated game_header DataFrame with PTS_HOME and PTS_VISITOR columns.
+    """
+    # Extract DataFrames
+    game_header = data["game_header"]
+    line_score = data["line_score"]
+
+    # Validate required columns
+    required_game_header_columns = {"GAME_ID", "HOME_TEAM_ID", "VISITOR_TEAM_ID"}
+    required_line_score_columns = {"GAME_ID", "TEAM_ID", "PTS"}
+
+    if not required_game_header_columns.issubset(game_header.columns):
+        raise ValueError(f"'game_header' must contain at least these columns: {required_game_header_columns}")
+    if not required_line_score_columns.issubset(line_score.columns):
+        raise ValueError(f"'line_score' must contain at least these columns: {required_line_score_columns}")
+
+    # Merge line_score with game_header to find scores for HOME_TEAM_ID and VISITOR_TEAM_ID
+    # Merge for HOME_TEAM_ID
+    home_scores = line_score.merge(
+        game_header[["GAME_ID", "HOME_TEAM_ID"]],
+        left_on=["GAME_ID", "TEAM_ID"],
+        right_on=["GAME_ID", "HOME_TEAM_ID"],
+        how="inner"
+    ).rename(columns={"PTS": "PTS_HOME"})[["GAME_ID", "PTS_HOME"]]
+
+    # Merge for VISITOR_TEAM_ID
+    visitor_scores = line_score.merge(
+        game_header[["GAME_ID", "VISITOR_TEAM_ID"]],
+        left_on=["GAME_ID", "TEAM_ID"],
+        right_on=["GAME_ID", "VISITOR_TEAM_ID"],
+        how="inner"
+    ).rename(columns={"PTS": "PTS_VISITOR"})[["GAME_ID", "PTS_VISITOR"]]
+
+    # Merge the scores back into game_header
+    enriched_game_header = game_header.merge(home_scores, on="GAME_ID", how="left")
+    enriched_game_header = enriched_game_header.merge(visitor_scores, on="GAME_ID", how="left")
+
+    return enriched_game_header

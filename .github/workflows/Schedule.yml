@@ -1,0 +1,183 @@
+name: ScheduleRunnerNba
+
+on:
+  schedule:
+    - cron: '0 14 * * *'  # This runs every day at 10:00 AM UTC
+
+  workflow_dispatch:   # Allow manual triggering and custom parameters
+    inputs:
+      branch:
+        description: 'Branch to deploy'  # Custom input to specify a branch
+        required: false  # Optional, set to true if you want this to be required
+        default: 'main'  # Default to the branch that triggered the workflow
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      GSHEET_NBA_MAKU_CREDENTIALS: ${{ secrets.GSHEET_NBA_MAKU_CREDENTIALS }}
+      GSHEET_NBA_MAKU_FOLDER_ID: ${{ secrets.GSHEET_NBA_MAKU_FOLDER_ID }}
+      FORMAT_OUTPUT_TYPE: ${{ vars.FORMAT_OUTPUT_TYPE }}
+      FILENAME_OUTPUT: ${{ vars.FILENAME_OUTPUT }}
+      GSHEET_NBA_MAKU_TIME_DELAY: ${{ vars.GSHEET_NBA_MAKU_TIME_DELAY }}
+      ONEDRIVE_EXCEL_NBA_PATH: ${{ vars.ONEDRIVE_EXCEL_NBA_PATH }}
+      LOCAL_EXCEL_NBA_PATH: ${{ vars.LOCAL_EXCEL_NBA_PATH }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Authenticate with Google Cloud
+        id: auth
+        run: |
+          # Safely create the JSON file from the secret
+          echo "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}" | base64 -d > /tmp/gcp-key.json          
+
+          gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+          gcloud config set project makurunner-project      
+          
+      - name: Start Google Cloud VM
+        id: start-vm
+        run: |
+          # Start the VM
+          gcloud compute instances start makurunner-vm --zone=us-west1-a
+
+          # Wait for the VM to be up and running
+          RETRY_COUNT=0
+          MAX_RETRIES=7
+          SLEEP_TIME=15
+          while true; do
+            VM_STATUS=$(gcloud compute instances describe makurunner-vm --zone=us-west1-a --format='get(status)')
+            if [ "$VM_STATUS" == "RUNNING" ]; then
+              echo "VM is up and running."
+              break
+            fi
+
+            if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+              echo "VM did not start within the allowed time. Exiting."
+              exit 1
+            fi
+
+            echo "VM is not ready yet. Retrying in $SLEEP_TIME seconds..."
+            sleep $SLEEP_TIME
+            ((RETRY_COUNT++))
+          done
+
+          # Get the new external IP
+          EXTERNAL_IP=$(gcloud compute instances describe makurunner-vm --zone=us-west1-a --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+          echo "External IP: $EXTERNAL_IP"
+          echo "::set-output name=vm_ip::$EXTERNAL_IP"
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+
+      - name: Debugging SSH private key
+        run: |
+          echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" | ssh-add -
+          ssh-add -l
+      
+      - name: Wait for VM to Be Ready
+        run: |
+          VM_IP=${{ steps.start-vm.outputs.vm_ip }}
+          echo "Checking if VM is ready at IP: $VM_IP"
+      
+          RETRY_COUNT=0
+          MAX_RETRIES=10
+          SLEEP_TIME=15
+          CONNECT_TIMEOUT=10
+      
+          # Ensure script does not exit on non-zero status
+          set +e
+      
+          while true; do
+            echo "Attempting to connect to $VM_IP via SSH... (Retry $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+      
+            # Try to SSH and capture the exit code
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=$CONNECT_TIMEOUT github-actions@$VM_IP exit
+            SSH_STATUS=$?
+      
+            # Log the exit status for visibility
+            echo "SSH connection exit status: $SSH_STATUS"
+      
+            if [ $SSH_STATUS -eq 0 ]; then
+              echo "VM is ready for SSH connections."
+              break
+            fi
+      
+            if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+              echo "VM did not become ready within the allowed time. Exiting."
+              exit 1
+            fi
+      
+            echo "VM is not ready yet. Retrying in $SLEEP_TIME seconds..."
+            sleep $SLEEP_TIME
+            ((RETRY_COUNT++))
+          done
+        shell: bash
+        
+        
+        
+      - name: SSH into Google Cloud VM and Deploy
+        run: |
+          # Use the branch from the 'workflow_dispatch' input or default to the one that triggered the push event
+          BRANCH_NAME="${{ github.event.inputs.branch || github.ref }}"
+
+          # Strip the 'refs/heads/' prefix to get the actual branch name
+          BRANCH_NAME=${BRANCH_NAME#refs/heads/}
+
+          echo "Deploying branch: $BRANCH_NAME"
+
+          ssh -o StrictHostKeyChecking=no github-actions@${{ steps.start-vm.outputs.vm_ip }} << EOF
+            # Check if Python is installed
+            # Check if Python 3.9 is installed, and if not, install it
+            if ! command -v python3.9 &>/dev/null; then
+              echo "Python3.9 is not installed. Installing Python3.9..."
+              sudo apt-get update
+              sudo apt-get install -y python3.9 python3.9-venv python3.9-dev python3-pip
+              sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1
+              sudo update-alternatives --config python3
+            else
+              echo "Python3.9 is already installed."
+            fi
+      
+            # Navigate to the repository      
+            cd /home/github-actions/NbaStats
+
+            # Fetch all branches to ensure we have the latest references
+            git fetch --all
+
+            # Check if the branch exists locally, and switch to it or create it
+            if git rev-parse --verify $BRANCH_NAME > /dev/null 2>&1; then
+              git checkout $BRANCH_NAME
+            else
+              git checkout -b $BRANCH_NAME origin/$BRANCH_NAME
+            fi
+
+            # Pull the latest changes for the branch
+            git pull origin $BRANCH_NAME
+
+            # Set up Python environment
+            python3.9 -m venv venv
+            source venv/bin/activate
+
+            # Install dependencies
+            pip install --upgrade pip
+            pip install -r requirements.txt
+
+            # Run the Python script
+            python3 GetAndBulkDataFromNbaPage.py
+          EOF
+          
+      - name: Notify Telegram Group
+        run: |
+          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
+          -d chat_id=${{ vars.TELEGRAM_GROUP_CHAT_ID }} \
+          -d text="RunnerNba action completed successfully at $(date)."
+
+      - name: Stop Google Cloud VM
+        if: always()  # Ensure this step always runs
+        run: |
+          gcloud compute instances stop makurunner-vm --zone=us-west1-a

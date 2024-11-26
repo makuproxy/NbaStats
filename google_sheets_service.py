@@ -10,6 +10,11 @@ import numpy as np
 from tqdm import tqdm
 from nba_helper import getMatchesByDate, getMatchesAndResultsFromYesterday
 from datetime import datetime, date
+import logging
+from logging_config import setup_logging
+
+setup_logging()
+logger = logging.getLogger(__name__)
 
 # print(json.dumps(update_requests, indent=4))
 # with open('update_requests.json', 'w') as json_file:
@@ -209,6 +214,7 @@ class GoogleSheetsService:
         gs_start_time = time.time()
         spread_sheet_main.batch_update(batch_update_values_request_body)
 
+        logger.info("BEGIN  SAVING MATCHES OF THE DAY")        
         matches_day_columns_mapping = {
                     "A": "GAME_DATE", 
                     "B": "HOME_TEAM_NAME",                     
@@ -223,7 +229,13 @@ class GoogleSheetsService:
         
         self.bulk_matches_of_the_day(sheet_name, "RESULTS", matches_day_columns_mapping, matches_day_data)
 
+        logger.info("END  SAVING MATCHES OF THE DAY")
 
+        logger.info("-----------------------")
+        logger.info("-----------------------")        
+
+
+        logger.info("BEGIN  SAVING MATCHES OF THE DAY BEFORE")        
         matches_day_before_columns_mapping = {
                             "A": "GAME_DATE", 
                             "B": "HOME_TEAM_NAME", 
@@ -242,15 +254,11 @@ class GoogleSheetsService:
 
         self.update_matches_with_results(sheet_name,"RESULTS",matches_day_before_columns_mapping, matches_day_before_data)
 
-
+        logger.info("END  SAVING MATCHES OF THE DAY BEFORE")
         
         time.sleep(10)
         gs_end_time = time.time()
         print(f"Total time taken: {gs_end_time - gs_start_time:.2f} seconds to upload all data into Sheets")
-
-   
-
-
 
 
     def bulk_matches_of_the_day(self, spreadsheetName, sheet_name, columns_mapping, data):
@@ -506,11 +514,8 @@ class GoogleSheetsService:
         for entity_name, entity_data in data.items():
             for idx, row in entity_data.iterrows():
                 # Find the matching row in the sheet
-                matching_row_index = self._find_matching_row_index(row, columns_mapping, existing_rows)
+                matching_row_index = self._find_matching_row_index(row, columns_mapping, existing_rows)                
                 
-                print("To print match index")
-                print(matching_row_index)
-                print("To print match index")
                 if matching_row_index is not None:
                     # Create the update request for the matching row
                     row_values = []

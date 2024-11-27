@@ -166,13 +166,22 @@ jobs:
             git reset --hard origin/$BRANCH_NAME
             git clean -fdx
             
-            
+            echo "Creating virtual environment"
+            python3 -m venv /home/github-actions/venv
+            source /home/github-actions/venv/bin/activate
+
+            # Validate that the virtual environment was created correctly
+            if [ ! -d "/home/github-actions/venv" ]; then
+              echo "Virtual environment creation failed!"
+              exit 1
+            fi
+
 
             # Check pip installation
-            pip --version || { echo "pip installation failed"; exit 1; }
+            python3 -m pip --version || { echo "pip installation failed"; exit 1; }
 
-            pip install --upgrade pip
-            pip install -r requirements.txt
+            python3 -m pip install --upgrade pip
+            python3 -m pip install -r requirements.txt
 
             echo "Clearing Python bytecode cache:"
             find . -name "__pycache__" -exec rm -rf {} +

@@ -43,14 +43,14 @@ jobs:
         id: start-vm
         run: |
           # Start the VM
-          gcloud compute instances start makunbarunner-vm --zone=us-west1-a
+          gcloud compute instances start makurunnernbapyupper-vm --zone=us-west1-a
 
           # Wait for the VM to be up and running
           RETRY_COUNT=0
           MAX_RETRIES=7
           SLEEP_TIME=15
           while true; do
-            VM_STATUS=$(gcloud compute instances describe makunbarunner-vm --zone=us-west1-a --format='get(status)')
+            VM_STATUS=$(gcloud compute instances describe makurunnernbapyupper-vm --zone=us-west1-a --format='get(status)')
             if [ "$VM_STATUS" == "RUNNING" ]; then
               echo "VM is up and running."
               break
@@ -67,7 +67,7 @@ jobs:
           done
 
           # Get the new external IP
-          EXTERNAL_IP=$(gcloud compute instances describe makunbarunner-vm --zone=us-west1-a --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+          EXTERNAL_IP=$(gcloud compute instances describe makurunnernbapyupper-vm --zone=us-west1-a --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
           echo "External IP: $EXTERNAL_IP"
           echo "::set-output name=vm_ip::$EXTERNAL_IP"
 
@@ -166,9 +166,6 @@ jobs:
             git reset --hard origin/$BRANCH_NAME
             git clean -fdx
             
-            sudo apt update
-            sudo apt install -y python3-venv python3-pip python3-dev
-
             
             echo "Creating virtual environment"
             python3 -m venv /home/github-actions/venv
@@ -219,4 +216,4 @@ jobs:
       - name: Stop Google Cloud VM
         if: always()  # Ensure this step always runs
         run: |
-          gcloud compute instances stop makunbarunner-vm --zone=us-west1-a
+          gcloud compute instances stop makurunnernbapyupper-vm --zone=us-west1-a

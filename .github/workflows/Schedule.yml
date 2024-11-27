@@ -169,14 +169,33 @@ jobs:
             
             # Install Python 3.10 and other dependencies
             sudo apt update
-            sudo apt install -y python3.10 python3.10-venv python3.10-pip python3.10-dev
+            sudo apt install -y python3.10 python3.10-venv python3.10-pip python3.10-dev               
 
             # Install Python 3.10 and ensure pip and venv work
             python3 -m ensurepip --upgrade
                   
+            echo "List python versions"
+            python3 --version
+            which python3
+
+            echo "-------------"
+            python3.10 --version
+            which python3.10
+            echo "-------------"
+            ls /usr/bin/python*
             
+            echo "-------------"
+            which python
+            python --version
+            echo "-------------"
+            pip --version
+
+            
+            echo "List python versions"
+
             echo "Creating virtual environment"
-            python3 -m venv /home/github-actions/venv
+            python3.10 -m venv /home/github-actions/venv
+            
             source /home/github-actions/venv/bin/activate
 
             # Validate that the virtual environment was created correctly

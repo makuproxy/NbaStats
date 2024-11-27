@@ -166,14 +166,9 @@ jobs:
             git reset --hard origin/$BRANCH_NAME
             git clean -fdx
             
-            echo "Printing site"
-            echo "Printing site"
-            python3 -m site
-            echo "Printing site"
-            echo "Printing site"
-
-            python3 -m venv venv
-            source venv/bin/activate
+            echo "Creating virtual environment"
+            python3 -m venv /home/github-actions/venv
+            source /home/github-actions/venv/bin/activate
             pip install --upgrade pip
             pip install -r requirements.txt
 

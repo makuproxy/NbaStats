@@ -149,17 +149,83 @@ jobs:
           BRANCH_NAME=${BRANCH_NAME#refs/heads/}
           ssh -o StrictHostKeyChecking=no makubex1719@${{ steps.start-vm.outputs.vm_ip }} << EOF
             echo "Deploying branch: $BRANCH_NAME"   
-            
-            echo "Listing current dir"
-            echo "Listing current dir"
-            echo "Listing current dir"
-            ls
-            pwd
-            echo "Listing current dir"
-            echo "Listing current dir"
-            echo "Listing current dir"
 
+            echo "Listing details for google_sheets_service.py:"
+            echo "Listing details for google_sheets_service.py:"
+            ls -lah /home/makubex1719/NbaStats/google_sheets_service.py
+            echo "Listing details for google_sheets_service.py:"
+            echo "Listing details for google_sheets_service.py:"
             
+            find . -name "__pycache__" -exec rm -rf {} +
+
+            cd /home/makubex1719
+            rm -rf NbaStats            
+            git clone --depth=1 --branch "$BRANCH_NAME" https://github.com/makuproxy/NbaStats.git
+            cd NbaStats
+            git fetch --all
+            git reset --hard origin/$BRANCH_NAME
+            git clean -fdx
+            
+            
+            # Install Python 3.10 and other dependencies
+            sudo apt update
+            sudo apt install -y python3-venv python3-pip python3-dev python3-virtualenv     
+                     
+
+            # Install Python 3.10 and ensure pip and venv work
+            python3 -m ensurepip --upgrade
+                  
+            echo "List python versions"
+            python3 --version
+            which python3
+
+            echo "-------------"
+            python3.10 --version
+            which python3.10
+            echo "-------------"
+            
+            python3 -m pip --version
+            
+            echo "List python versions"
+
+            echo "Creating virtual environment"
+            python3 -m venv /home/makubex1719/venv
+            
+            source /home/makubex1719/venv/bin/activate
+
+            # Validate that the virtual environment was created correctly
+            if [ ! -d "/home/makubex1719/venv" ]; then
+              echo "Virtual environment creation failed!"
+              exit 1
+            fi
+
+
+            # Check pip installation
+            python3 -m pip --version || { echo "pip installation failed"; exit 1; }
+
+            python3 -m pip install --upgrade pip
+            python3 -m pip install -r requirements.txt
+
+            echo "Clearing Python bytecode cache:"
+            find . -name "__pycache__" -exec rm -rf {} +
+            find . -name "*.pyc" -exec rm -f {} +
+
+            ls
+            echo "After listing data in current directory"
+            
+            python3 --version
+            python3 -c "import os; print(os.getcwd())"
+            python3 -c "import GetAndBulkDataFromNbaPage; print(GetAndBulkDataFromNbaPage.__file__)"
+            echo "printing google_sheets_service"
+            echo "printing google_sheets_service"
+            echo "printing google_sheets_service"
+            python3 -c "import google_sheets_service; print(google_sheets_service.__file__)"
+            echo "printing google_sheets_service"
+            echo "printing google_sheets_service"
+            echo "printing google_sheets_service"
+
+
+            python3 GetAndBulkDataFromNbaPage.py
           EOF
                
       

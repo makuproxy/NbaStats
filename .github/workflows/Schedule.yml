@@ -85,7 +85,7 @@ jobs:
         run: |
           # Install dependencies to create the virtual environment
           sudo apt update
-          sudo apt install -y python3.10 python3.10-venv python3.10-dev python3-pip
+          sudo apt install -y python3.10 python3.10-venv python3.10-dev python3-pip          
 
           # Set Python 3.10 as the default python3 version
           sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
@@ -165,6 +165,10 @@ jobs:
             git fetch --all
             git reset --hard origin/$BRANCH_NAME
             git clean -fdx
+            
+            sudo apt update
+            sudo apt install -y python3-venv python3-pip python3-dev
+
             
             echo "Creating virtual environment"
             python3 -m venv /home/github-actions/venv

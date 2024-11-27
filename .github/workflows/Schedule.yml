@@ -124,34 +124,32 @@ jobs:
         run: |
           BRANCH_NAME="${{ github.event.inputs.branch || github.ref }}"
           BRANCH_NAME=${BRANCH_NAME#refs/heads/}
-      
           ssh -o StrictHostKeyChecking=no github-actions@${{ steps.start-vm.outputs.vm_ip }} << EOF
-            echo "Logged into VM. Current user: \$(whoami)"
-            
-            echo "Removing existing repository and caches..."
+            echo "Deploying branch: $BRANCH_NAME"
+
             cd /home/github-actions
             rm -rf NbaStats
-            find . -name "__pycache__" -exec rm -rf {} +
-      
-            echo "Cloning repository..."
-            git clone https://github.com/makuproxy/NbaStats.git
+            git clone --no-tags --no-replace-objects --depth=1 https://github.com/makuproxy/NbaStats.git
             cd NbaStats
             git fetch --all
-            git reset --hard origin/${BRANCH_NAME}
+            git reset --hard origin/$BRANCH_NAME
             git clean -fdx
-            git log -1 --oneline
-      
-            echo "Recreating Python virtual environment..."
-            if [ -d "venv" ]; then
-              rm -rf venv
-            fi
+
             python3.9 -m venv venv
             source venv/bin/activate
             pip install --upgrade pip
             pip install -r requirements.txt
-      
-            echo "Running the Python script..."
-            python3 GetAndBulkDataFromNbaPage.py
+
+            echo "Clearing Python bytecode cache:"
+            find . -name "__pycache__" -exec rm -rf {} +
+
+            echo "Verifying script version and Python environment:"
+            cat GetAndBulkDataFromNbaPage.py
+            python3.9 --version
+            python3.9 -c "import os; print(os.getcwd())"
+            python3.9 -c "import GetAndBulkDataFromNbaPage; print(GetAndBulkDataFromNbaPage.__file__)"
+
+            python3.9 GetAndBulkDataFromNbaPage.py
           EOF
       
           

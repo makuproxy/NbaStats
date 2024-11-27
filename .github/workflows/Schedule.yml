@@ -149,7 +149,7 @@ jobs:
       
             cd /home/github-actions
             rm -rf NbaStats
-            git clone https://github.com/your-repo/NbaStats.git
+            git clone https://github.com/makuproxy/NbaStats.git
             cd NbaStats            
 
             # Set up Python environment

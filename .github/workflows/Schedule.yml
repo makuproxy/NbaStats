@@ -183,18 +183,12 @@ jobs:
             which python3.10
             echo "-------------"
             
-            
-            echo "-------------"
-            which python
-            python --version
-            echo "-------------"
-            pip --version
-
+            python3 -m pip --version
             
             echo "List python versions"
 
             echo "Creating virtual environment"
-            python3.10 -m venv /home/github-actions/venv
+            python3 -m venv /home/github-actions/venv
             
             source /home/github-actions/venv/bin/activate
 

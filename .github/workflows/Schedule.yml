@@ -32,25 +32,25 @@ jobs:
         id: auth
         run: |
           # Safely create the JSON file from the secret
-          echo "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}"
+          echo "${{ secrets.GCP_SERVICE_ACCOUNT_KEY_NEW }}"
           echo "keyyyyy"
-          echo "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}" | base64 -d > /tmp/gcp-key.json          
+          echo "${{ secrets.GCP_SERVICE_ACCOUNT_KEY_NEW }}" | base64 -d > /tmp/gcp-key.json          
 
           gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
-          gcloud config set project makurunner-project      
+          gcloud config set project makunbarunner-poject      
           
       - name: Start Google Cloud VM
         id: start-vm
         run: |
           # Start the VM
-          gcloud compute instances start makurunnernbapyupper-vm --zone=us-west1-a
+          gcloud compute instances start makunbarunnerubuntu-vm --zone=us-west1-a
 
           # Wait for the VM to be up and running
           RETRY_COUNT=0
           MAX_RETRIES=7
           SLEEP_TIME=15
           while true; do
-            VM_STATUS=$(gcloud compute instances describe makurunnernbapyupper-vm --zone=us-west1-a --format='get(status)')
+            VM_STATUS=$(gcloud compute instances describe makunbarunnerubuntu-vm --zone=us-west1-a --format='get(status)')
             if [ "$VM_STATUS" == "RUNNING" ]; then
               echo "VM is up and running."
               break
@@ -67,18 +67,18 @@ jobs:
           done
 
           # Get the new external IP
-          EXTERNAL_IP=$(gcloud compute instances describe makurunnernbapyupper-vm --zone=us-west1-a --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+          EXTERNAL_IP=$(gcloud compute instances describe makunbarunnerubuntu-vm --zone=us-west1-a --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
           echo "External IP: $EXTERNAL_IP"
           echo "::set-output name=vm_ip::$EXTERNAL_IP"
 
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.5.3
         with:
-          ssh-private-key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.GCP_SSH_PRIVATE_KEY_NEW }}
 
       - name: Debugging SSH private key
         run: |
-          echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" | ssh-add -
+          echo "${{ secrets.GCP_SSH_PRIVATE_KEY_NEW }}" | ssh-add -
           ssh-add -l
       
       - name: Install Python 3.10 on the VM (if not already installed)
@@ -149,83 +149,16 @@ jobs:
           BRANCH_NAME=${BRANCH_NAME#refs/heads/}
           ssh -o StrictHostKeyChecking=no github-actions@${{ steps.start-vm.outputs.vm_ip }} << EOF
             echo "Deploying branch: $BRANCH_NAME"   
-
-            echo "Listing details for google_sheets_service.py:"
-            echo "Listing details for google_sheets_service.py:"
-            ls -lah /home/github-actions/NbaStats/google_sheets_service.py
-            echo "Listing details for google_sheets_service.py:"
-            echo "Listing details for google_sheets_service.py:"
             
-            find . -name "__pycache__" -exec rm -rf {} +
-
-            cd /home/github-actions
-            rm -rf NbaStats            
-            git clone --depth=1 --branch "$BRANCH_NAME" https://github.com/makuproxy/NbaStats.git
-            cd NbaStats
-            git fetch --all
-            git reset --hard origin/$BRANCH_NAME
-            git clean -fdx
-            
-            
-            # Install Python 3.10 and other dependencies
-            sudo apt update
-            sudo apt install -y python3-venv python3-pip python3-dev python3-virtualenv     
-                     
-
-            # Install Python 3.10 and ensure pip and venv work
-            python3 -m ensurepip --upgrade
-                  
-            echo "List python versions"
-            python3 --version
-            which python3
-
-            echo "-------------"
-            python3.10 --version
-            which python3.10
-            echo "-------------"
-            
-            python3 -m pip --version
-            
-            echo "List python versions"
-
-            echo "Creating virtual environment"
-            python3 -m venv /home/github-actions/venv
-            
-            source /home/github-actions/venv/bin/activate
-
-            # Validate that the virtual environment was created correctly
-            if [ ! -d "/home/github-actions/venv" ]; then
-              echo "Virtual environment creation failed!"
-              exit 1
-            fi
-
-
-            # Check pip installation
-            python3 -m pip --version || { echo "pip installation failed"; exit 1; }
-
-            python3 -m pip install --upgrade pip
-            python3 -m pip install -r requirements.txt
-
-            echo "Clearing Python bytecode cache:"
-            find . -name "__pycache__" -exec rm -rf {} +
-            find . -name "*.pyc" -exec rm -f {} +
-
+            echo "Listing current dir"
+            echo "Listing current dir"
+            echo "Listing current dir"
             ls
-            echo "After listing data in current directory"
+            echo "Listing current dir"
+            echo "Listing current dir"
+            echo "Listing current dir"
+
             
-            python3 --version
-            python3 -c "import os; print(os.getcwd())"
-            python3 -c "import GetAndBulkDataFromNbaPage; print(GetAndBulkDataFromNbaPage.__file__)"
-            echo "printing google_sheets_service"
-            echo "printing google_sheets_service"
-            echo "printing google_sheets_service"
-            python3 -c "import google_sheets_service; print(google_sheets_service.__file__)"
-            echo "printing google_sheets_service"
-            echo "printing google_sheets_service"
-            echo "printing google_sheets_service"
-
-
-            python3 GetAndBulkDataFromNbaPage.py
           EOF
                
       
@@ -233,4 +166,4 @@ jobs:
       - name: Stop Google Cloud VM
         if: always()  # Ensure this step always runs
         run: |
-          gcloud compute instances stop makurunnernbapyupper-vm --zone=us-west1-a
+          gcloud compute instances stop makunbarunnerubuntu-vm --zone=us-west1-a

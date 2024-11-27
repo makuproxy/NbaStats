@@ -143,14 +143,9 @@ jobs:
             echo "Clearing Python bytecode cache:"
             find . -name "__pycache__" -exec rm -rf {} +
 
-            echo "Verifying script version and Python environment:"
-            cat GetAndBulkDataFromNbaPage.py
-            echo "Printing google_sheets_service.py"
-            echo "Printing google_sheets_service.py"
-            echo "Printing google_sheets_service.py"
-            echo "Printing google_sheets_service.py"
-            cat google_sheets_service.py
+            ls __pycache__
 
+            
             python3.9 --version
             python3.9 -c "import os; print(os.getcwd())"
             python3.9 -c "import GetAndBulkDataFromNbaPage; print(GetAndBulkDataFromNbaPage.__file__)"

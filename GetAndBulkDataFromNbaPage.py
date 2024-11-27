@@ -3,7 +3,8 @@ import time
 from tqdm import tqdm
 from data_processor import DataProcessor
 from excel_service import ExcelService
-from google_sheets_service import GoogleSheetsService
+# from google_sheets_service import GoogleSheetsService
+import google_sheets_service
 from utils import CacheUtils
 from nba_helper import process_team_data, update_team_data, process_team_data_rs, process_AllTeam_ST
 from constants import (
@@ -14,6 +15,11 @@ from constants import (
 )
 from urls import schedule_urls, stats_urls
 from dotenv import load_dotenv
+import importlib
+
+print("Loaded google_sheets_service from:", google_sheets_service.__file__)
+
+importlib.reload(google_sheets_service)
 
 load_dotenv()
 
@@ -82,7 +88,7 @@ if __name__ == "__main__":
     if GeneralSetting.FORMAT_OUTPUT_TYPE == 'excel':
         ExcelService.save_excel(stats_data, GeneralSetting.FILENAME_OUTPUT)        
     elif GeneralSetting.FORMAT_OUTPUT_TYPE == 'sheets':
-        sheets_service = GoogleSheetsService(GSheetSetting.FOLDER_ID)
+        sheets_service = google_sheets_service.GoogleSheetsService(GSheetSetting.FOLDER_ID)
         sheets_service.save_sheets(stats_data, GeneralSetting.FILENAME_OUTPUT)        
     process_end_time = time.time()
 

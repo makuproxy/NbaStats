@@ -142,17 +142,22 @@ jobs:
 
             echo "Clearing Python bytecode cache:"
             find . -name "__pycache__" -exec rm -rf {} +
+            find . -name "*.pyc" -exec rm -f {} +
 
             ls
             echo "After listing data in current directory"
-            echo "After listing data in current directory"
-            echo "After listing data in current directory"
-            echo "After listing data in current directory"
-
             
             python3.9 --version
             python3.9 -c "import os; print(os.getcwd())"
             python3.9 -c "import GetAndBulkDataFromNbaPage; print(GetAndBulkDataFromNbaPage.__file__)"
+            echo "printing google_sheets_service"
+            echo "printing google_sheets_service"
+            echo "printing google_sheets_service"
+            python3.9 -c "import google_sheets_service; print(google_sheets_service.__file__)"
+            echo "printing google_sheets_service"
+            echo "printing google_sheets_service"
+            echo "printing google_sheets_service"
+
 
             python3.9 GetAndBulkDataFromNbaPage.py
           EOF

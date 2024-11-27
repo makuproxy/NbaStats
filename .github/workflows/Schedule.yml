@@ -148,6 +148,7 @@ jobs:
             echo "Printing google_sheets_service.py"
             echo "Printing google_sheets_service.py"
             echo "Printing google_sheets_service.py"
+            echo "Printing google_sheets_service.py"
             cat google_sheets_service.py
 
             python3.9 --version

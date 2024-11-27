@@ -125,7 +125,15 @@ jobs:
           BRANCH_NAME="${{ github.event.inputs.branch || github.ref }}"
           BRANCH_NAME=${BRANCH_NAME#refs/heads/}
           ssh -o StrictHostKeyChecking=no github-actions@${{ steps.start-vm.outputs.vm_ip }} << EOF
-            echo "Deploying branch: $BRANCH_NAME"            
+            echo "Deploying branch: $BRANCH_NAME"   
+
+            echo "Listing details for google_sheets_service.py:"
+            echo "Listing details for google_sheets_service.py:"
+            ls -lah /home/github-actions/NbaStats/google_sheets_service.py
+            echo "Listing details for google_sheets_service.py:"
+            echo "Listing details for google_sheets_service.py:"
+            
+            find . -name "__pycache__" -exec rm -rf {} +
 
             cd /home/github-actions
             rm -rf NbaStats            
@@ -134,6 +142,12 @@ jobs:
             git fetch --all
             git reset --hard origin/$BRANCH_NAME
             git clean -fdx
+            
+            echo "Printing site"
+            echo "Printing site"
+            python3.9 -m site
+            echo "Printing site"
+            echo "Printing site"
 
             python3.9 -m venv venv
             source venv/bin/activate

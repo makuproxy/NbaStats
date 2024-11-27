@@ -171,6 +171,11 @@ jobs:
             echo "Last commit details after pull:"
             git log -1 --oneline
 
+            if [ -d "venv" ]; then
+              echo "Removing old virtual environment..."
+              rm -rf venv
+            fi
+
             # Set up Python environment
             python3.9 -m venv venv
             source venv/bin/activate

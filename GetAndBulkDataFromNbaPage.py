@@ -89,6 +89,10 @@ if __name__ == "__main__":
     # print(f"****>> File Path: {file_path}")
     
     # Save data based on the output type
+    print("Current value ")
+    print(GeneralSetting.FORMAT_OUTPUT_TYPE)
+    print("Current value ")
+
     if GeneralSetting.FORMAT_OUTPUT_TYPE == 'excel':
         ExcelService.save_excel(stats_data, GeneralSetting.FILENAME_OUTPUT)        
     elif GeneralSetting.FORMAT_OUTPUT_TYPE == 'sheets':

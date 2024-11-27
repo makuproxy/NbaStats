@@ -119,7 +119,7 @@ jobs:
             echo "Attempting to connect to $VM_IP via SSH... (Retry $((RETRY_COUNT + 1))/$MAX_RETRIES)"
       
             # Try to SSH and capture the exit code
-            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=$CONNECT_TIMEOUT github-actions@$VM_IP exit
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=$CONNECT_TIMEOUT makubex1719@$VM_IP exit
             SSH_STATUS=$?
       
             # Log the exit status for visibility
@@ -147,7 +147,7 @@ jobs:
         run: |
           BRANCH_NAME="${{ github.event.inputs.branch || github.ref }}"
           BRANCH_NAME=${BRANCH_NAME#refs/heads/}
-          ssh -o StrictHostKeyChecking=no github-actions@${{ steps.start-vm.outputs.vm_ip }} << EOF
+          ssh -o StrictHostKeyChecking=no makubex1719@${{ steps.start-vm.outputs.vm_ip }} << EOF
             echo "Deploying branch: $BRANCH_NAME"   
             
             echo "Listing current dir"

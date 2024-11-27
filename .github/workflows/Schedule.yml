@@ -147,34 +147,10 @@ jobs:
             echo "Current directory before git operations:"
             pwd
       
-            # Navigate to the repository      
-            cd /home/github-actions/NbaStats
-
-            # Log the current directory after changing to the repository
-            echo "Current directory after navigating to the repository:"
-            pwd
-
-            # Fetch all branches to ensure we have the latest references
-            git fetch --all
-
-            # Check if the branch exists locally, and switch to it or create it
-            if git rev-parse --verify $BRANCH_NAME > /dev/null 2>&1; then
-              git checkout $BRANCH_NAME
-            else
-              git checkout -b $BRANCH_NAME origin/$BRANCH_NAME
-            fi
-
-            # Pull the latest changes for the branch
-            git pull origin $BRANCH_NAME
-
-            # Log the last commit details for debugging
-            echo "Last commit details after pull:"
-            git log -1 --oneline
-
-            if [ -d "venv" ]; then
-              echo "Removing old virtual environment..."
-              rm -rf venv
-            fi
+            cd /home/github-actions
+            rm -rf NbaStats
+            git clone https://github.com/your-repo/NbaStats.git
+            cd NbaStats            
 
             # Set up Python environment
             python3.9 -m venv venv

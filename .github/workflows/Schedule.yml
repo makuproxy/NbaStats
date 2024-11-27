@@ -128,8 +128,8 @@ jobs:
             echo "Deploying branch: $BRANCH_NAME"
 
             cd /home/github-actions
-            rm -rf NbaStats
-            git clone --no-tags --no-replace-objects --depth=1 https://github.com/makuproxy/NbaStats.git
+            rm -rf NbaStats            
+            git clone --depth=1 --branch "$BRANCH_NAME" https://github.com/makuproxy/NbaStats.git
             cd NbaStats
             git fetch --all
             git reset --hard origin/$BRANCH_NAME

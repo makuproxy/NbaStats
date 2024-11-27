@@ -83,24 +83,24 @@ jobs:
       
       - name: Install Python 3.10 on the VM (if not already installed)
         run: |
-          # Check if Python 3.10 is already installed
-          if ! python3 --version &>/dev/null; then
-            echo "Python 3.10 is not installed. Installing now..."
-            
-            # Install Python 3.10 on the VM
-            sudo apt update
-            sudo apt install -y python3 python3-venv python3-dev python3-pip
+          # Install dependencies to create the virtual environment
+          sudo apt update
+          sudo apt install -y python3.10 python3.10-venv python3.10-dev python3-pip
 
-            # Set Python 3.10 as the default python3 version
-            sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3 1
-            sudo update-alternatives --config python3
+          # Set Python 3.10 as the default python3 version
+          sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
+          sudo update-alternatives --config python3
 
-            # Verify the installed Python version
-            python3 --version
-          else
-            echo "Python 3.10 is already installed. Skipping installation."
-            python3 --version
-          fi
+          # Verify the installed Python version
+          python3 --version
+          
+          # Check if pip is installed
+          python3 -m pip --version || { echo "pip is not installed"; exit 1; }
+
+          # Check if venv is available
+          python3 -m venv --help || { echo "python3 -m venv is not available"; exit 1; }
+
+
       
       - name: Wait for VM to Be Ready
         run: |
@@ -169,6 +169,16 @@ jobs:
             echo "Creating virtual environment"
             python3 -m venv /home/github-actions/venv
             source /home/github-actions/venv/bin/activate
+
+            # Validate that the virtual environment was created correctly
+            if [ ! -d "/home/github-actions/venv" ]; then
+              echo "Virtual environment creation failed!"
+              exit 1
+            fi
+
+            # Check pip installation
+            pip --version || { echo "pip installation failed"; exit 1; }
+
             pip install --upgrade pip
             pip install -r requirements.txt
 

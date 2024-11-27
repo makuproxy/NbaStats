@@ -84,15 +84,15 @@ jobs:
       - name: Install Python 3.10 on the VM (if not already installed)
         run: |
           # Check if Python 3.10 is already installed
-          if ! python3.10 --version &>/dev/null; then
+          if ! python3 --version &>/dev/null; then
             echo "Python 3.10 is not installed. Installing now..."
             
             # Install Python 3.10 on the VM
             sudo apt update
-            sudo apt install -y python3.10 python3.10-venv python3.10-dev python3-pip
+            sudo apt install -y python3 python3-venv python3-dev python3-pip
 
             # Set Python 3.10 as the default python3 version
-            sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
+            sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3 1
             sudo update-alternatives --config python3
 
             # Verify the installed Python version
@@ -168,11 +168,11 @@ jobs:
             
             echo "Printing site"
             echo "Printing site"
-            python3.10 -m site
+            python3 -m site
             echo "Printing site"
             echo "Printing site"
 
-            python3.10 -m venv venv
+            python3 -m venv venv
             source venv/bin/activate
             pip install --upgrade pip
             pip install -r requirements.txt
@@ -184,19 +184,19 @@ jobs:
             ls
             echo "After listing data in current directory"
             
-            python3.10 --version
-            python3.10 -c "import os; print(os.getcwd())"
-            python3.10 -c "import GetAndBulkDataFromNbaPage; print(GetAndBulkDataFromNbaPage.__file__)"
+            python3 --version
+            python3 -c "import os; print(os.getcwd())"
+            python3 -c "import GetAndBulkDataFromNbaPage; print(GetAndBulkDataFromNbaPage.__file__)"
             echo "printing google_sheets_service"
             echo "printing google_sheets_service"
             echo "printing google_sheets_service"
-            python3.10 -c "import google_sheets_service; print(google_sheets_service.__file__)"
+            python3 -c "import google_sheets_service; print(google_sheets_service.__file__)"
             echo "printing google_sheets_service"
             echo "printing google_sheets_service"
             echo "printing google_sheets_service"
 
 
-            python3.10 GetAndBulkDataFromNbaPage.py
+            python3 GetAndBulkDataFromNbaPage.py
           EOF
       
           

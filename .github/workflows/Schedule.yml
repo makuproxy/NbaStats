@@ -182,7 +182,7 @@ jobs:
             python3.10 --version
             which python3.10
             echo "-------------"
-            ls /usr/bin/python*
+            
             
             echo "-------------"
             which python

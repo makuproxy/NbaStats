@@ -126,7 +126,12 @@ jobs:
           BRANCH_NAME=${BRANCH_NAME#refs/heads/}
           ssh -o StrictHostKeyChecking=no github-actions@${{ steps.start-vm.outputs.vm_ip }} << EOF
             echo "Deploying branch: $BRANCH_NAME"
-
+            ls
+            echo "After listing data in current directory"
+            echo "After listing data in current directory"
+            echo "After listing data in current directory"
+            echo "After listing data in current directory"
+            
             cd /home/github-actions
             rm -rf NbaStats            
             git clone --depth=1 --branch "$BRANCH_NAME" https://github.com/makuproxy/NbaStats.git

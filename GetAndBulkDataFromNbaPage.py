@@ -19,7 +19,7 @@ import importlib
 
 print("Loaded google_sheets_service from:", google_sheets_service.__file__)
 
-importlib.reload(google_sheets_service)
+google_sheets_service = importlib.reload(google_sheets_service)
 
 load_dotenv()
 

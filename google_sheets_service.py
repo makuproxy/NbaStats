@@ -26,6 +26,11 @@ class GoogleSheetsService:
         self.gc = gspread.authorize(self.load_credentials())
 
     def load_credentials(self):
+        logger.info("print credentials")
+        logger.info(GSheetSetting.CREDENTIALS)
+        logger.info("--------------------")
+        print(GSheetSetting.CREDENTIALS)
+        logger.info("print credentials")
         credentials_dict = json.loads(GSheetSetting.CREDENTIALS)
         return Credentials.from_service_account_info(credentials_dict, scopes=GSheetSetting.SCOPE)
 

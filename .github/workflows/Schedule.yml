@@ -117,68 +117,19 @@ jobs:
             sleep $SLEEP_TIME
             ((RETRY_COUNT++))
           done
-        shell: bash
-        
-      - name: Validate and Install Python 3.10 on the VM
-        run: |
-          # Helper function to log messages
-          log() {
-            echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
-          }
-
-          echo "print current directory"
-          pwd
-          echo "print current directory"
-      
-          # Check if Python 3.10 is installed
-          if python3.10 --version &>/dev/null; then
-            log "✅ Python 3.10 is already installed."
-          else
-            log "⚠️  Python 3.10 is not installed. Installing now..."
-            
-            # Update package list and install Python 3.10 and dependencies
-            sudo apt update
-            sudo apt install -y python3.10 python3.10-venv python3.10-dev python3-pip
-      
-            # Set Python 3.10 as the default python3 version
-            sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
-            sudo update-alternatives --config python3
-      
-            # Verify the installation
-            if python3 --version | grep -q "3.10"; then
-              log "✅ Python 3.10 successfully installed and set as default."
-            else
-              log "❌ Python 3.10 installation failed!"
-              exit 1
-            fi
-          fi
-      
-          # Validate pip installation
-          if python3 -m pip --version &>/dev/null; then
-            log "✅ pip is already installed."
-          else
-            log "⚠️  pip is not installed. Installing now..."
-            python3 -m ensurepip --upgrade || { log "❌ pip installation failed!"; exit 1; }
-            log "✅ pip installed successfully."
-          fi
-      
-          # Validate venv availability
-          if python3 -m venv --help &>/dev/null; then
-            log "✅ venv is available."
-          else
-            log "❌ python3 -m venv is not available. Installation failed!"
-            exit 1
-          fi
-      
-          log "🎉 Python 3.10 setup and validation completed successfully."
-        
+        shell: bash        
         
       - name: SSH into Google Cloud VM and Deploy
         run: |
           BRANCH_NAME="${{ github.event.inputs.branch || github.ref }}"
           BRANCH_NAME=${BRANCH_NAME#refs/heads/}
           ssh -o StrictHostKeyChecking=no makubex1719@${{ steps.start-vm.outputs.vm_ip }} << EOF
-            echo "Deploying branch: $BRANCH_NAME"   
+
+            log() {
+              echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
+            }
+
+            log "🚀 Starting deployment for branch: $BRANCH_NAME" 
             
             export GSHEET_NBA_MAKU_CREDENTIALS="${{ secrets.GSHEET_NBA_MAKU_CREDENTIALS }}"
             export GSHEET_NBA_MAKU_FOLDER_ID="${{ secrets.GSHEET_NBA_MAKU_FOLDER_ID }}"
@@ -187,6 +138,18 @@ jobs:
             export GSHEET_NBA_MAKU_TIME_DELAY="${{ vars.GSHEET_NBA_MAKU_TIME_DELAY }}"
             export ONEDRIVE_EXCEL_NBA_PATH="${{ vars.ONEDRIVE_EXCEL_NBA_PATH }}"
             export LOCAL_EXCEL_NBA_PATH="${{ vars.LOCAL_EXCEL_NBA_PATH }}"
+
+
+            # Check if Python 3.10 is installed
+            if python3.10 --version &>/dev/null; then
+              log "✅ Python 3.10 is already installed."
+            else
+              log "⚠️  Python 3.10 is not installed. Installing now..."
+              sudo apt update
+              sudo apt install -y python3.10 python3.10-venv python3.10-dev python3-pip
+              sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
+              sudo update-alternatives --config python3
+            fi
 
                         
             find . -name "__pycache__" -exec rm -rf {} +
@@ -202,7 +165,7 @@ jobs:
             
             # Install Python 3.10 and other dependencies
             sudo apt update
-            sudo apt install -y python3-venv python3-pip python3-dev python3-virtualenv     
+            sudo apt install -y python3-venv python3-pip python3-dev python3-virtualenv
                      
 
             # Install Python 3.10 and ensure pip and venv work
@@ -213,9 +176,9 @@ jobs:
             which python3
 
             
-            echo "Creating virtual environment"
-            python3 -m venv /home/makubex1719/venv
-            
+            # Set up virtual environment
+            log "🔧 Setting up virtual environment."
+            python3 -m venv /home/makubex1719/venv            
             source /home/makubex1719/venv/bin/activate
 
             # Validate that the virtual environment was created correctly
@@ -228,14 +191,22 @@ jobs:
             # Check pip installation
             python3 -m pip --version || { echo "pip installation failed"; exit 1; }
 
+
+            # Install dependencies
+            log "📦 Installing Python dependencies."
             python3 -m pip install --upgrade pip
             python3 -m pip install -r requirements.txt
 
-            echo "Clearing Python bytecode cache:"
+            # Clear Python bytecode cache
+            log "🧹 Clearing Python bytecode cache."
             find . -name "__pycache__" -exec rm -rf {} +
             find . -name "*.pyc" -exec rm -f {} +            
 
-            python3 GetAndBulkDataFromNbaPage.py
+            # Execute the Python script
+            log "🏀 Running script: GetAndBulkDataFromNbaPage.py"
+            python3 GetAndBulkDataFromNbaPage.py || { log "❌ Script execution failed! Exiting."; exit 1; }
+
+            log "🎉 Deployment and execution completed successfully!"
           EOF
                
       

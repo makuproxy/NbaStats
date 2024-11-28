@@ -4,7 +4,6 @@ from tqdm import tqdm
 from data_processor import DataProcessor
 from excel_service import ExcelService
 from google_sheets_service import GoogleSheetsService
-# import google_sheets_service
 from utils import CacheUtils
 from nba_helper import process_team_data, update_team_data, process_team_data_rs, process_AllTeam_ST
 from constants import (
@@ -15,11 +14,6 @@ from constants import (
 )
 from urls import schedule_urls, stats_urls
 from dotenv import load_dotenv
-import importlib
-
-# print("Loaded google_sheets_service from:", google_sheets_service.__file__)
-
-# google_sheets_service = importlib.reload(google_sheets_service)
 
 load_dotenv()
 
@@ -40,11 +34,7 @@ def scrape_data(urls, sheet_suffix, team_data=None):
     for url in tqdm(urls, desc=f"Scraping {sheet_suffix}"):
         team_name, team_df = DataProcessor.process_url(url, sheet_suffix)  # Pass all_static_teams for team mapping
         
-        if team_name and team_df is not None:
-            print("calling STTTTTTTTT")
-            print("calling STTTTTTTTT")
-            print("calling STTTTTTTTT")
-            print("calling STTTTTTTTT")
+        if team_name and team_df is not None:            
             if sheet_suffix == "_ST":
                 # Consolidate `_ST` team data under "All Teams_ST"
                 if "All Teams_ST" in team_data:
@@ -89,15 +79,10 @@ if __name__ == "__main__":
     # print(f"****>> File Path: {file_path}")
     
     # Save data based on the output type
-    print("Current value ")
-    print(GeneralSetting.FORMAT_OUTPUT_TYPE)
-    print("Current value ")
-
     if GeneralSetting.FORMAT_OUTPUT_TYPE == 'excel':
         ExcelService.save_excel(stats_data, GeneralSetting.FILENAME_OUTPUT)        
     elif GeneralSetting.FORMAT_OUTPUT_TYPE == 'sheets':
-        sheets_service = GoogleSheetsService(GSheetSetting.FOLDER_ID)
-        print("Before calling ")        
+        sheets_service = GoogleSheetsService(GSheetSetting.FOLDER_ID)        
         sheets_service.save_sheets(stats_data, GeneralSetting.FILENAME_OUTPUT)        
     process_end_time = time.time()
 

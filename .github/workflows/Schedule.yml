@@ -31,7 +31,7 @@ jobs:
       - name: Authenticate with Google Cloud
         id: auth
         run: |
-          # Safely create the JSON file from the secret          
+          # Safely create the JSON file from the secret
           echo "${{ secrets.GCP_SERVICE_ACCOUNT_KEY_NEW }}" | base64 -d > /tmp/gcp-key.json          
 
           gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
@@ -119,6 +119,58 @@ jobs:
           done
         shell: bash
         
+      - name: Validate and Install Python 3.10 on the VM
+        run: |
+          # Helper function to log messages
+          log() {
+            echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
+          }
+
+          echo "print current directory"
+          pwd
+          echo "print current directory"
+      
+          # Check if Python 3.10 is installed
+          if python3.10 --version &>/dev/null; then
+            log "✅ Python 3.10 is already installed."
+          else
+            log "⚠️  Python 3.10 is not installed. Installing now..."
+            
+            # Update package list and install Python 3.10 and dependencies
+            sudo apt update
+            sudo apt install -y python3.10 python3.10-venv python3.10-dev python3-pip
+      
+            # Set Python 3.10 as the default python3 version
+            sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
+            sudo update-alternatives --config python3
+      
+            # Verify the installation
+            if python3 --version | grep -q "3.10"; then
+              log "✅ Python 3.10 successfully installed and set as default."
+            else
+              log "❌ Python 3.10 installation failed!"
+              exit 1
+            fi
+          fi
+      
+          # Validate pip installation
+          if python3 -m pip --version &>/dev/null; then
+            log "✅ pip is already installed."
+          else
+            log "⚠️  pip is not installed. Installing now..."
+            python3 -m ensurepip --upgrade || { log "❌ pip installation failed!"; exit 1; }
+            log "✅ pip installed successfully."
+          fi
+      
+          # Validate venv availability
+          if python3 -m venv --help &>/dev/null; then
+            log "✅ venv is available."
+          else
+            log "❌ python3 -m venv is not available. Installation failed!"
+            exit 1
+          fi
+      
+          log "🎉 Python 3.10 setup and validation completed successfully."
         
         
       - name: SSH into Google Cloud VM and Deploy
@@ -136,15 +188,7 @@ jobs:
             export ONEDRIVE_EXCEL_NBA_PATH="${{ vars.ONEDRIVE_EXCEL_NBA_PATH }}"
             export LOCAL_EXCEL_NBA_PATH="${{ vars.LOCAL_EXCEL_NBA_PATH }}"
 
-            # Debug environment variables
-            env | grep GSHEET
-
-            echo "Listing details for google_sheets_service.py:"
-            echo "Listing details for google_sheets_service.py:"
-            ls -lah /home/makubex1719/NbaStats/google_sheets_service.py
-            echo "Listing details for google_sheets_service.py:"
-            echo "Listing details for google_sheets_service.py:"
-            
+                        
             find . -name "__pycache__" -exec rm -rf {} +
 
             cd /home/makubex1719
@@ -168,15 +212,7 @@ jobs:
             python3 --version
             which python3
 
-            echo "-------------"
-            python3.10 --version
-            which python3.10
-            echo "-------------"
             
-            python3 -m pip --version
-            
-            echo "List python versions"
-
             echo "Creating virtual environment"
             python3 -m venv /home/makubex1719/venv
             
@@ -197,22 +233,7 @@ jobs:
 
             echo "Clearing Python bytecode cache:"
             find . -name "__pycache__" -exec rm -rf {} +
-            find . -name "*.pyc" -exec rm -f {} +
-
-            ls
-            echo "After listing data in current directory"
-            
-            python3 --version
-            python3 -c "import os; print(os.getcwd())"
-            python3 -c "import GetAndBulkDataFromNbaPage; print(GetAndBulkDataFromNbaPage.__file__)"
-            echo "printing google_sheets_service"
-            echo "printing google_sheets_service"
-            echo "printing google_sheets_service"
-            python3 -c "import google_sheets_service; print(google_sheets_service.__file__)"
-            echo "printing google_sheets_service"
-            echo "printing google_sheets_service"
-            echo "printing google_sheets_service"
-
+            find . -name "*.pyc" -exec rm -f {} +            
 
             python3 GetAndBulkDataFromNbaPage.py
           EOF

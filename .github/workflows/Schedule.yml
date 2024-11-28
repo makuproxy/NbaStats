@@ -150,6 +150,8 @@ jobs:
           ssh -o StrictHostKeyChecking=no makubex1719@${{ steps.start-vm.outputs.vm_ip }} << EOF
             echo "Deploying branch: $BRANCH_NAME"   
             
+            export GSHEET_NBA_MAKU_CREDENTIALS="${{ secrets.GSHEET_NBA_MAKU_CREDENTIALS }}"
+            export GSHEET_NBA_MAKU_FOLDER_ID="${{ secrets.GSHEET_NBA_MAKU_FOLDER_ID }}"
             export FORMAT_OUTPUT_TYPE="${{ vars.FORMAT_OUTPUT_TYPE }}"
             export FILENAME_OUTPUT="${{ vars.FILENAME_OUTPUT }}"
             export GSHEET_NBA_MAKU_TIME_DELAY="${{ vars.GSHEET_NBA_MAKU_TIME_DELAY }}"

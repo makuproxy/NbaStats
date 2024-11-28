@@ -211,11 +211,12 @@ jobs:
                
       - name: Notify Telegram Group
         run: |
-          TZ="UTC-5" echo "Current time: $(date)"  # Print the current time in Peru's timezone
+          export TZ="America/Lima"  # Set timezone to Peru (UTC-5)
           date_format=$(date +"%I:%M %p")  # 12-hour format with AM/PM
+          formatted_date=$(date +"%Y-%m-%d")  # Date in YYYY-MM-DD format
           curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
           -d chat_id=${{ vars.TELEGRAM_GROUP_CHAT_ID }} \
-          -d text="RunnerNba action completed successfully at $date_format on $(date +"%Y-%m-%d"). FORMIDABLE!!"
+          -d text="RunnerNba action completed successfully at $date_format on $formatted_date. FORMIDABLE!!"
         
 
       - name: Stop Google Cloud VM

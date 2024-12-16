@@ -1,18 +1,20 @@
-import numpy as np
-import time
 import pandas as pd
-from nba_api.stats.endpoints import teamgamelog, boxscoretraditionalv2, scoreboardv2
+from nba_api.stats.endpoints import scoreboardv2
 from constants import (
-    GSheetSetting,
     GeneralSetting
 )
-from helpers import BasketballHelpers
 from datetime import datetime, timedelta
 import re
 import logging
 from logging_config import setup_logging
-from fake_useragent import UserAgent
-from typing import Callable
+# from fake_useragent import UserAgent
+# from typing import Callable
+
+
+# from utils.api_helpers import generate_headers, retry_with_backoff
+# from api_helpers import generate_headers, retry_with_backoff
+from data_processing.box_scores import get_recent_box_scores
+from data_processing.game_logs import get_team_game_logs
 
 
 setup_logging()
@@ -21,123 +23,6 @@ logger = logging.getLogger(__name__)
 # pd.set_option('display.max_rows', None)
 # pd.set_option('display.max_columns', None)
 
-def generate_headers() -> dict:
-    """Generate custom headers with a random UserAgent."""
-    ua = UserAgent()
-    return {
-        'User-Agent': ua.random,
-        'Accept': 'application/json, text/plain, */*',
-        'Referer': 'https://www.nba.com/',
-        'Origin': 'https://www.nba.com',
-        'Host': 'stats.nba.com',
-        'Connection': 'keep-alive',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Accept-Language': 'en-US,en;q=0.9',
-    }
-
-def retry_with_backoff(
-    func: Callable, 
-    max_retries: int = 3, 
-    initial_timeout: int = 75, 
-    backoff_factor: float = 1.5
-):
-    """
-    Retry a function with exponential backoff and jitter.
-
-    :param func: The function to retry.
-    :param max_retries: Maximum number of retry attempts.
-    :param initial_timeout: Initial timeout in seconds.
-    :param backoff_factor: Multiplier for timeout on each retry.
-    :return: Result of the function call.
-    """
-    timeout = initial_timeout
-    for attempt in range(max_retries):
-        try:
-            return func()
-        except Exception as e:
-            logger.error(f"Attempt {attempt + 1} failed with error: {e}")
-            if attempt == max_retries - 1:
-                raise
-            time.sleep(timeout + np.random.uniform(1, 3))  # Add jitter
-            timeout *= backoff_factor
-
-def fetch_box_score(game_id):
-    """Fetch and return the box score for a given game ID."""
-    def fetch_data():
-        headers = generate_headers()
-        box_score = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, headers=headers, timeout=75)
-        return box_score.get_data_frames()[0]
-    
-    result_box_score = retry_with_backoff(fetch_data)
-
-    # Process data as before
-    result_box_score.drop(columns=["TEAM_ABBREVIATION", "TEAM_CITY", "NICKNAME"], inplace=True)    
-
-    # Apply formatting to 'MIN' column
-    result_box_score['MIN'] = result_box_score['MIN'].apply(BasketballHelpers.format_minutes)
-    for col in ['FGM', 'FGA', 'FG3M', 'FG3A', 'FTM', 'FTA', 'OREB', 'DREB', 'REB', 'AST', 'STL', 'BLK', 'TO', 'PF', 'PTS']:
-        result_box_score[col] = result_box_score[col].fillna(0).astype(int).astype(str)
-
-    for col in ['FG_PCT', 'FG3_PCT', 'FT_PCT']:
-        result_box_score[col] = result_box_score[col].apply(
-            lambda x: str(int(x * 100)) if pd.notna(x) and float(x) == 1.0 else f"{x * 100:.1f}" if pd.notna(x) else np.nan
-        )
-    
-
-    # print(f"End--> fetch_box_score() for  {game_id}")
-    # logger.info(f"End--> fetch_box_score() for  {game_id}")
-
-    return result_box_score
-
-def get_recent_box_scores(df, game_logs_df, teamIdLookup):
-    top_5_dates = pd.to_datetime(df['DateFormated'], format='%m/%d/%Y').nlargest(5).dt.strftime('%m/%d/%Y')
-    filtered_games = game_logs_df[game_logs_df['GAME_DATE'].isin(top_5_dates)]
-    
-    box_scores = []
-    for idx, game_id in enumerate(filtered_games['Game_ID']):
-        box_score_df = fetch_box_score(game_id)
-        opponent_id = filtered_games['Opponent_Team_ID'].iloc[idx]  # Get the opponent ID for the current game
-        filtered_box_score_df = box_score_df[box_score_df['TEAM_ID'] == teamIdLookup].copy()  # Make a copy to avoid the warning
-        
-        if not filtered_box_score_df.empty:
-            filtered_box_score_df.loc[:, 'BX_Opponent_Team_ID'] = opponent_id  # Add the opponent ID to the box score
-            box_scores.append(filtered_box_score_df)
-    
-    return box_scores
-
-def get_team_game_logs(df, teamId):
-    """Retrieve and format game logs for the team."""
-    min_date = pd.to_datetime(df['DateFormated'], format='%m/%d/%Y').min().strftime('%m/%d/%Y')
-    def fetch_data():
-        headers = generate_headers()
-        team_game_logs = teamgamelog.TeamGameLog(
-            season="ALL",
-            season_type_all_star="Regular Season",
-            team_id=teamId,
-            league_id_nullable="00",
-            date_from_nullable=min_date,
-            headers=headers,
-            timeout=75
-        )
-        return team_game_logs.get_data_frames()[0]
-    
-    game_logs_df = retry_with_backoff(fetch_data)
-
-    # Process data as before
-    game_logs_df.drop(columns=["W", "L", "W_PCT", "MIN", "FGM", "FGA", "FG_PCT", "FG3M", "FG3A", "FG3_PCT", "FTM", "FTA", "FT_PCT", "OREB", "DREB", "REB", "AST", "STL", "BLK", "TOV", "PF"], inplace=True)
-    game_logs_df['GAME_DATE'] = pd.to_datetime(game_logs_df['GAME_DATE'], format='%b %d, %Y').dt.strftime('%m/%d/%Y')
-
-    team_abbr_to_id = {team['abbreviation']: team['id'] for team in GeneralSetting.ALL_STATIC_TEAMS}
-    game_logs_df['Opponent_Team_ID'] = game_logs_df['MATCHUP'].str.extract(r'@ (\w+)|vs\. (\w+)', expand=False).bfill(axis=1).iloc[:, 0].map(team_abbr_to_id)
-
-    game_logs_df['Opponent_Team_ID'] = pd.to_numeric(game_logs_df['Opponent_Team_ID'], errors='coerce')
-
-    game_logs_df.drop(columns=['MATCHUP'], inplace=True)
-
-    # print(f"End--> get_team_game_logs() for  {teamId}")
-    # logger.info(f"End--> get_team_game_logs() for  {teamId}")
-
-    return game_logs_df
 
 def process_team_data(team_data, grouped_data, teamIds_Dictionary, sheet_suffix):
     new_entries = {}  # Collect new entries here    

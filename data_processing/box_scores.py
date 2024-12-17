@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from nba_api.stats.endpoints import boxscoretraditionalv2
 from helpers import BasketballHelpers
 
@@ -14,12 +15,8 @@ def fetch_box_score(game_id):
     
     result_box_score = retry_with_backoff(fetch_data)
     
-
-    return result_box_score
-
-def process_box_score(result_box_score):
     # Process data as before
-    result_box_score.drop(columns=["TEAM_ABBREVIATION", "TEAM_CITY", "NICKNAME"], inplace=True)
+    result_box_score.drop(columns=["TEAM_ABBREVIATION", "TEAM_CITY", "NICKNAME"], inplace=True)    
 
     # Apply formatting to 'MIN' column
     result_box_score['MIN'] = result_box_score['MIN'].apply(BasketballHelpers.format_minutes)
@@ -29,7 +26,9 @@ def process_box_score(result_box_score):
     for col in ['FG_PCT', 'FG3_PCT', 'FT_PCT']:
         result_box_score[col] = result_box_score[col].apply(
             lambda x: str(int(x * 100)) if pd.notna(x) and float(x) == 1.0 else f"{x * 100:.1f}" if pd.notna(x) else np.nan
-        )
+        )    
+
+    return result_box_score
 
 
 def get_recent_box_scores(df, game_logs_df, teamIdLookup):

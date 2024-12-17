@@ -8,10 +8,11 @@ import time
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
-from nba_helper import getMatchesByDate, getMatchesAndResultsFromYesterday
 from datetime import datetime, date
 import base64
 import logging
+import random
+import string
 from logging_config import setup_logging
 
 setup_logging()
@@ -196,7 +197,7 @@ class GoogleSheetsService:
 
         return update_requests
 
-    def save_sheets(self, data, sheet_name):
+    def save_sheets(self, data, sheet_name, nba_data_service):
         spread_sheet_main = self.open_or_create_spreadsheet(sheet_name)
 
         # Clear all sheets in the spreadsheet
@@ -224,21 +225,6 @@ class GoogleSheetsService:
                     "E": "VISITOR_TEAM_NAME"
                 }
         
-        matches_day_data = getMatchesByDate(
-            entity_columns={
-                "game_header": ["GAME_ID", "HOME_TEAM_ID", "HOME_TEAM_NAME", "VISITOR_TEAM_ID", "VISITOR_TEAM_NAME", "GAME_DATE"]
-                }            
-        )
-        
-        self.bulk_matches_of_the_day(sheet_name, "RESULTS", matches_day_columns_mapping, matches_day_data)
-
-        logger.info("END  SAVING MATCHES OF THE DAY")
-
-        logger.info("-----------------------")
-        logger.info("-----------------------")        
-
-
-        logger.info("BEGIN  SAVING MATCHES OF THE DAY BEFORE")        
         matches_day_before_columns_mapping = {
                             "A": "GAME_DATE", 
                             "B": "HOME_TEAM_NAME", 
@@ -247,15 +233,12 @@ class GoogleSheetsService:
                             "E": "VISITOR_TEAM_NAME"
                         }
 
-        matches_day_before_data = getMatchesAndResultsFromYesterday(
-            entity_columns={
-                "game_header": ["GAME_ID", "HOME_TEAM_ID", "HOME_TEAM_NAME", "VISITOR_TEAM_ID", "VISITOR_TEAM_NAME", "GAME_DATE"],
-                "line_score": ["GAME_ID", "TEAM_ID", "PTS", "GAME_DATE"]
-            }
-        )
-
-
-        self.update_matches_with_results(sheet_name,"RESULTS",matches_day_before_columns_mapping, matches_day_before_data)
+        matches_day_data = nba_data_service.fetch_matches_of_the_day()
+        self.bulk_matches_of_the_day(sheet_name, "RESULTS", matches_day_columns_mapping, matches_day_data)
+       
+        matches_day_before_data = nba_data_service.fetch_matches_of_the_day_before()
+        self.update_matches_with_results(sheet_name, "RESULTS", matches_day_before_columns_mapping, matches_day_before_data)        
+        
 
         logger.info("END  SAVING MATCHES OF THE DAY BEFORE")
         
@@ -293,8 +276,6 @@ class GoogleSheetsService:
         # Prepare update requests based on the provided data
         update_requests = self._prepare_update_requests(sheet, data, columns_mapping, blocks, last_cells)
 
-        with open('update_requests.json', 'w') as json_file:
-            json_file.write(json.dumps(update_requests, indent=4))
         self._execute_batch_update(spread_sheet_main, update_requests)
 
 
@@ -449,6 +430,16 @@ class GoogleSheetsService:
         if not update_requests:
             print("No updates to perform. Skipping batch_update.")
             return  # Skip execution if there are no requests
+        
+        # def generate_random_string(length=8):
+        #     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
+        
+        # timestamp = time.strftime('%Y%m%d_%H%M%S')
+        # filename = f"update_requests_{timestamp}_{generate_random_string()}.json"
+
+
+        # with open(filename, 'w') as json_file:
+        #     json_file.write(json.dumps(update_requests, indent=4))
 
         try:
             batch_update_values_request_body = {'requests': update_requests}
@@ -496,9 +487,6 @@ class GoogleSheetsService:
         update_requests = self._prepare_update_requests_for_existing_data(
             sheet, data, columns_mapping, existing_rows
         )
-
-        # with open('update_requests.json', 'w') as json_file:
-        #     json_file.write(json.dumps(update_requests, indent=4))        
 
         # Execute the batch update
         self._execute_batch_update(spread_sheet_main, update_requests)

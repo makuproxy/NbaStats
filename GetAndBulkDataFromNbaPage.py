@@ -5,7 +5,9 @@ from data_processor import DataProcessor
 from excel_service import ExcelService
 from google_sheets_service import GoogleSheetsService
 from utils import CacheUtils
-from nba_helper import process_team_data, update_team_data, process_team_data_rs, process_AllTeam_ST
+# from nba_helper import process_team_data, update_team_data, process_team_data_rs, process_AllTeam_ST
+from team_data_processing import process_team_data, update_team_data, process_team_data_rs, process_AllTeam_ST
+from nba_data_service import NbaDataService
 from constants import (
     GeneralSetting,
     GSheetSetting,
@@ -82,8 +84,9 @@ if __name__ == "__main__":
     if GeneralSetting.FORMAT_OUTPUT_TYPE == 'excel':
         ExcelService.save_excel(stats_data, GeneralSetting.FILENAME_OUTPUT)        
     elif GeneralSetting.FORMAT_OUTPUT_TYPE == 'sheets':
+        nba_data_service = NbaDataService()
         sheets_service = GoogleSheetsService(GSheetSetting.FOLDER_ID)        
-        sheets_service.save_sheets(stats_data, GeneralSetting.FILENAME_OUTPUT)        
+        sheets_service.save_sheets(stats_data, GeneralSetting.FILENAME_OUTPUT, nba_data_service)
     process_end_time = time.time()
 
     # Calculate the total time taken

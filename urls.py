@@ -1,21 +1,30 @@
 # # URLs for schedule data
 # schedule_urls = [    
-#     "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2025",    
-#     "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2025"
+#     "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Schedule/2025",
+#     "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2025"    
+#     # "https://basketball.realgm.com/nba/teams/Orlando-Magic/21/Schedule/2025",    
+#     # "https://basketball.realgm.com/nba/teams/Toronto-Raptors/28/Schedule/2025",
+#     # "https://basketball.realgm.com/nba/teams/Charlotte-Hornets/3/Schedule/2025",
+#     # "https://basketball.realgm.com/nba/teams/Chicago-Bulls/4/Schedule/2025",
+#     # "https://basketball.realgm.com/nba/teams/Dallas-Mavericks/6/Schedule/2025"
+#     # ,    
+#     # "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Schedule/2025"
 # ]
 
 # # URLs for stats data
 # stats_urls = [
-#     "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-#     "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-#     "https://basketball.realgm.com/nba/teams/Brooklyn-Nets/38/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-#     "https://basketball.realgm.com/nba/teams/Charlotte-Hornets/3/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-#     "https://basketball.realgm.com/nba/teams/Chicago-Bulls/4/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-#     "https://basketball.realgm.com/nba/teams/Cleveland-Cavaliers/5/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-#     "https://basketball.realgm.com/nba/teams/Dallas-Mavericks/6/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-#     "https://basketball.realgm.com/nba/teams/Denver-Nuggets/7/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-#     "https://basketball.realgm.com/nba/teams/Detroit-Pistons/8/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
-#     "https://basketball.realgm.com/nba/teams/Golden-State-Warriors/9/Stats/2025/Averages/All/points/All/desc/1/Regular_Season"
+#     "https://basketball.realgm.com/nba/teams/Atlanta-Hawks/1/Stats/2025/Averages/All/points/All/desc/1/Regular_Season"
+#     # ,
+#     # "https://basketball.realgm.com/nba/teams/Boston-Celtics/2/Stats/2025/Averages/All/points/All/desc/1/Regular_Season"
+#     # ,
+#     # "https://basketball.realgm.com/nba/teams/Brooklyn-Nets/38/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
+#     # "https://basketball.realgm.com/nba/teams/Charlotte-Hornets/3/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
+#     # "https://basketball.realgm.com/nba/teams/Chicago-Bulls/4/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
+#     # "https://basketball.realgm.com/nba/teams/Cleveland-Cavaliers/5/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
+#     # "https://basketball.realgm.com/nba/teams/Dallas-Mavericks/6/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
+#     # "https://basketball.realgm.com/nba/teams/Denver-Nuggets/7/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
+#     # "https://basketball.realgm.com/nba/teams/Detroit-Pistons/8/Stats/2025/Averages/All/points/All/desc/1/Regular_Season",
+#     # "https://basketball.realgm.com/nba/teams/Golden-State-Warriors/9/Stats/2025/Averages/All/points/All/desc/1/Regular_Season"
 # ]
 
 

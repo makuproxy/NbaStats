@@ -30,26 +30,43 @@ class DataProcessor:
     def clean_team_df_for_RegularSeason(team_df, year_per_url):
         """Clean DataFrame for regular season data."""
         columns_to_drop = ['Venue', 'Record', 'PPP']
-        team_df = team_df.drop(columns=[col for col in team_df.columns if col in columns_to_drop or 'Leaders' in col])    
-
+        # team_df = team_df.drop(columns=[col for col in columns_to_drop or 'Leaders' in col])
+        team_df = team_df.drop(columns=[col for col in team_df.columns if col in columns_to_drop or 'Leaders' in col])
+        
         # Create the new 'OpponentCl' column by cleaning up 'Opponent'
-        team_df['OpponentCl'] = team_df['Opponent'].str.replace(r'[@v\.]', '', regex=True).str.strip()
+        # team_df['OpponentCl'] = team_df['Opponent'].str.replace(r'[@v\.]', '', regex=True).str.strip()
 
         # Filter out rows where 'Result' contains 'Postponed' or 'Preview'
         team_df = team_df[~team_df['Result'].str.contains("Postponed|Preview", na=False)]
 
-        # Add columns for 'Score 1' and 'Score 2' by extracting numbers from 'Result'
-        team_df['Score 1'] = team_df['Result'].str.extract(r'(\d+)', expand=False).fillna(0).astype(int)
-        team_df['Score 2'] = team_df['Result'].str.extract(r'(\d+)$', expand=False).fillna(0).astype(int)
+        # Add columns for 'Score 1' and 'PTS_V' by extracting numbers from 'Result'
+        team_df['PTS_H'] = team_df['Result'].str.extract(r'(\d+)', expand=False).fillna(0).astype(int)
+        team_df['PTS_V'] = team_df['Result'].str.extract(r'(\d+)$', expand=False).fillna(0).astype(int)
 
         # Create 'IsLocal' column based on 'Opponent'
         team_df['IsLocal'] = team_df['Opponent'].apply(lambda x: "N" if "@" in x else ("Y" if "v." in x else None))    
 
         # Final adjustments: drop and rename columns
         team_df = team_df.drop(columns=['Opponent', 'Result'])
-        team_df = team_df.rename(columns={"OpponentCl": "Opponent"})
+        # team_df = team_df.rename(columns={"OpponentCl": "Opponent"})
 
-        team_df['url_year'] = year_per_url
+        # team_df = team_df.drop(columns=['Opponent', 'Result'])
+
+        # Add 'Home' and 'Visitor' columns based on 'IsLocal'
+        team_df['Home'] = team_df.apply(lambda row: 'HomeTeam' if row['IsLocal'] == 'Y' else None, axis=1)
+        team_df['Visitor'] = team_df.apply(lambda row: 'HomeTeam' if row['IsLocal'] == 'N' else None, axis=1)
+
+        team_df['PTS_1'] = team_df.apply(
+            lambda row: row['PTS_H'] if row['IsLocal'] == 'Y' else row['PTS_V'], axis=1
+        )
+
+        team_df['PTS_2'] = team_df.apply(
+            lambda row: row['PTS_H'] if row['IsLocal'] == 'N' else row['PTS_V'], axis=1
+        )        
+
+        team_df['TOTAL'] = team_df['PTS_H'] + team_df['PTS_V']
+
+        team_df['url_year'] = year_per_url        
         team_df['DateFormated'] = pd.to_datetime(team_df['Date'], errors='coerce').dt.strftime('%m/%d/%Y')
 
         return team_df

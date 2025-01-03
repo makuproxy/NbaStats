@@ -1,12 +1,21 @@
 import pandas as pd
+from typing import Any, Dict, List, Union
+from datetime import datetime, timedelta
+import json
 
 from constants import (
     GeneralSetting
 )
 
-from data_processing.box_scores import get_recent_box_scores
+from data_processing.box_scores import get_recent_box_scores, process_box_scores_by_uniquegameIds
 from data_processing.game_logs import get_team_game_logs
 
+
+def append_BXSC_by_uniqueGameId(team_data, unique_game_ids_team_names, boxscoreDataToUpdate):
+    
+    new_entries = process_box_scores_by_uniquegameIds(unique_game_ids_team_names, boxscoreDataToUpdate)
+
+    team_data.update(new_entries)
 
 def process_team_data_GameLogs_and_BXSC(team_data, grouped_data, teamIds_Dictionary, sheet_suffix):
     new_entries = {}  # Collect new entries here    
@@ -21,15 +30,15 @@ def process_team_data_GameLogs_and_BXSC(team_data, grouped_data, teamIds_Diction
             merged_df = merge_game_logs(df, game_logs_df)
             team_data[team_name] = merged_df
             
-            # Create new entry for box scores
-            new_team_key = f"{base_team_name}_BXSC"
-            box_scores = get_recent_box_scores(df, game_logs_df, teamIdLookup)
+    #         # Create new entry for box scores
+    #         new_team_key = f"{base_team_name}_BXSC"
+    #         box_scores = get_recent_box_scores(df, game_logs_df, teamIdLookup)
             
-            if box_scores:
-                new_entries[new_team_key] = pd.concat(box_scores, ignore_index=True)
+    #         if box_scores:
+    #             new_entries[new_team_key] = pd.concat(box_scores, ignore_index=True)
 
-    # Now update team_data with the new entries
-    team_data.update(new_entries)
+    # # Now update team_data with the new entries
+    # team_data.update(new_entries)
 
 
 def update_team_data(team_data, team_name, team_df):
@@ -53,96 +62,17 @@ def add_seasons_field(df, base_team_name, grouped_data):
 def merge_game_logs(df, game_logs_df):
     return df.merge(game_logs_df, left_on='DateFormated', right_on='GAME_DATE', how='left')
 
-# def process_team_data_rs(team_data, grouped_data):
-#     """Processes team data for keys ending with '_RS'."""
-
-#     # Validate if grouped_data is empty or None
-#     if not grouped_data:
-#         return team_data    
-    
-#     keys_to_process = [k for k in team_data.keys() if k.endswith("_RS")]    
-
-#     all_static_teams = GeneralSetting.ALL_STATIC_TEAMS
-#     id_to_full_name = {team["id"]: team["full_name"] for team in all_static_teams}
-
-#     for key in keys_to_process:
-#         team_df = team_data[key]
-#         if "GAME_DATE" in team_df.columns and "Opponent_Team_ID" in team_df.columns:
-#             # team_df["Opponent"] = team_df["Opponent_Team_ID"].map(id_to_full_name)
-            
-#             columns_to_drop = ["Date", "url_year"]
-
-#             team_df["Home"] = team_df.apply(
-#                 lambda row: id_to_full_name.get(row["Team_ID"]) if row["Home"] == "HomeTeam" 
-#                 else id_to_full_name.get(row["Opponent_Team_ID"]), axis=1
-#             )
-
-#             team_df["Visitor"] = team_df.apply(
-#                 lambda row: id_to_full_name.get(row["Team_ID"]) if row["Visitor"] == "HomeTeam" 
-#                 else id_to_full_name.get(row["Opponent_Team_ID"]), axis=1
-#             )
-
-#             team_df["Team_1"] = team_df["Team_ID"].map(id_to_full_name)
-#             team_df["Team_2"] = team_df["Opponent_Team_ID"].map(id_to_full_name)
-            
-
-#             team_df = team_df.drop(columns=[col for col in columns_to_drop if col in team_df.columns])
-            
-
-#             grouped = process_grouped_data(team_df)
-
-#             team_data[key] = grouped
-
-#     # team_data = add_l5_op_column(team_data)
-#     team_data = add_opposite_columns(
-#                     team_data,  # Your dictionary of team DataFrames
-#                     columns_to_analyze=["L5", "L5_T1_OFF_RTG", "L5_T1_DEF_RTG"],  # Columns to analyze
-#                     output_columns=["L5_OP", "L5_T2_OFF_RTG", "L5_T2_DEF_RTG"]  # Output columns
-#                 )
-#     team_data = add_l5_hv_column(team_data)
-
-#     column_operations = {
-#         "L5_HV": [("sum", 15, "PTS_OVER_15"),  # L5_HV + 15 and store in 'PTS_OVER_15'
-#                 ("subtract", 15, "PTS_UNDER_15")]  # L5_HV - 15 and store in 'PTS_UNDER_15'
-#     }
-
-#     team_data = add_calculated_columns(team_data, column_operations)
-
-#     columns_to_drop = ["GAME_DATE", "Seasons"]
-#     for key, df in team_data.items():
-#         # Add new columns with default values
-#         df["Target"] = None
-#         df["PTS_UNDER"] = 0
-#         df["ODD_UNDER"] = 0
-#         df["PTS_OVER"] = 0
-#         df["ODD_OVER"] = 0
-
-#         # Drop unnecessary columns, use `drop` only once per DataFrame
-#         df.drop(columns=[col for col in columns_to_drop if col in df.columns], inplace=True)
-
-#         # Reorganize the DataFrame according to the column order
-#         column_order = [
-#             "Game_ID", "DateFormated", "IsLocal", "Team_1", "PTS_1", "PTS_2", "Team_2", 
-#             "TOTAL", "L5", "L5_OP", "L5_HV", "Target", "L5_T1_OFF_RTG", "L5_T1_DEF_RTG", "L5_T2_OFF_RTG", 
-#             "L5_T2_DEF_RTG", "PTS_UNDER_15", "PTS_UNDER", "ODD_UNDER", "PTS_OVER_15", "PTS_OVER", "ODD_OVER", "WL", "Team_ID", "Opponent_Team_ID", 
-#             "Home", "PTS_H", "PTS_V", "Visitor", "Opponent H2H"
-#         ]        
-        
-#         df = df[[col for col in column_order if col in df.columns]]
-
-#         # Sort by 'DateFormated' column (ascending order)
-#         df.sort_values(by="DateFormated", ascending=True, inplace=True)
-
-#         # Save the sorted DataFrame back into the dictionary
-#         team_data[key] = df
-
 def process_team_data_rs(team_data, grouped_data):
     """Processes team data for keys ending with '_RS'."""
     
     if not grouped_data:
         return team_data    
 
-    keys_to_process = [k for k in team_data.keys() if k.endswith("_RS")]
+    keys_to_process = [k for k in team_data.keys() if k.endswith("_RS") and not k.endswith("_BXSC")]
+    
+    if not keys_to_process:
+        return team_data
+
     all_static_teams = GeneralSetting.ALL_STATIC_TEAMS
     id_to_full_name = {team["id"]: team["full_name"] for team in all_static_teams}
 
@@ -195,11 +125,14 @@ def process_team_data_rs(team_data, grouped_data):
         "Game_ID", "DateFormated", "IsLocal", "Team_1", "PTS_1", "PTS_2", "Team_2", 
         "TOTAL", "L5", "L5_OP", "L5_HV", "Target", "L5_T1_OFF_RTG", "L5_T1_DEF_RTG", "L5_T2_OFF_RTG", 
         "L5_T2_DEF_RTG", "PTS_UNDER_15", "PTS_UNDER", "ODD_UNDER", "PTS_OVER_15", "PTS_OVER", "ODD_OVER", 
-        "WL", "Team_ID", "Opponent_Team_ID", "Home", "PTS_H", "PTS_V", "Visitor", "Opponent H2H"
+        "WL", "Team_ID", "Opponent_Team_ID", "Home", "PTS_H", "PTS_V", "Visitor", "Opponent H2H", "5 Last games"
     ]
 
-    for key, df in team_data.items():
+    # for key, df in team_data.items():
+    for key in keys_to_process:
         # Add default columns
+        df = team_data[key]   
+
         df = df.assign(
             Target=None,
             PTS_UNDER=0,
@@ -213,6 +146,16 @@ def process_team_data_rs(team_data, grouped_data):
 
         # Reorder columns and sort
         df = df[[col for col in column_order if col in df.columns]].sort_values(by="DateFormated", ascending=True)
+        team_data[key] = df
+
+        # Only sort by 'DateFormated' if it exists in the DataFrame
+        if 'DateFormated' in df.columns:
+            df['DateFormated'] = pd.to_datetime(df['DateFormated'], format='%m/%d/%Y')
+            df = df[[col for col in column_order if col in df.columns]].sort_values(by="DateFormated", ascending=True)
+        else:
+            # If 'DateFormated' doesn't exist, keep the default order or handle it differently            
+            df = df[[col for col in column_order if col in df.columns]]
+
         team_data[key] = df
 
     return team_data
@@ -230,33 +173,35 @@ def add_opposite_columns(team_data, columns_to_analyze, output_columns):
         # Create a dictionary to store the lookup values for the current column
         l5_values = {}
 
+        # Iterate only through keys that end with '_RS'
         for key, df in team_data.items():
-            if analyze_col in df.columns:
-                # Create a lookup dictionary for the analyzed column (e.g., 'L5', 'L5_T1_OFF_RTG', etc.)
-                for idx, row in df.iterrows():
-                    if pd.notna(row[analyze_col]):
-                        opponent_team_id = row['Opponent_Team_ID']
-                        game_id = row['Game_ID']
-                        team_id = row['Team_ID']
+            if key.endswith("_RS"):  # Check if the key ends with '_RS'
+                if analyze_col in df.columns:
+                    # Create a lookup dictionary for the analyzed column (e.g., 'L5', 'L5_T1_OFF_RTG', etc.)
+                    for idx, row in df.iterrows():
+                        if pd.notna(row[analyze_col]):
+                            opponent_team_id = row['Opponent_Team_ID']
+                            game_id = row['Game_ID']
+                            team_id = row['Team_ID']
 
-                        # Store the analyzed column values in the dictionary for faster lookup
-                        if (game_id, opponent_team_id, team_id) not in l5_values:
-                            # Look for a match where Opponent_Team_ID and Team_ID are flipped
-                            for other_key, other_df in team_data.items():
-                                if other_key != key:  # Avoid self-matching the same team
-                                    matching_rows = other_df[
-                                        (other_df['Team_ID'] == opponent_team_id) & 
-                                        (other_df['Opponent_Team_ID'] == team_id) & 
-                                        (other_df['Game_ID'] == game_id)
-                                    ]
-                                    if not matching_rows.empty:
-                                        l5_values[(game_id, opponent_team_id, team_id)] = matching_rows.iloc[0][analyze_col]
-                                        break
+                            # Store the analyzed column values in the dictionary for faster lookup
+                            if (game_id, opponent_team_id, team_id) not in l5_values:
+                                # Look for a match where Opponent_Team_ID and Team_ID are flipped
+                                for other_key, other_df in team_data.items():
+                                    if other_key.endswith("_RS") and other_key != key:  # Only consider keys that end with '_RS'
+                                        matching_rows = other_df[
+                                            (other_df['Team_ID'] == opponent_team_id) & 
+                                            (other_df['Opponent_Team_ID'] == team_id) & 
+                                            (other_df['Game_ID'] == game_id)
+                                        ]
+                                        if not matching_rows.empty:
+                                            l5_values[(game_id, opponent_team_id, team_id)] = matching_rows.iloc[0][analyze_col]
+                                            break
 
-                # Assign the calculated column (e.g., 'L5_OP', 'L5_T2_OFF_RTG') based on the lookup
-                df[output_col] = df.apply(
-                    lambda row: l5_values.get((row['Game_ID'], row['Opponent_Team_ID'], row['Team_ID']), None), axis=1
-                )
+                    # Assign the calculated column (e.g., 'L5_OP', 'L5_T2_OFF_RTG') based on the lookup
+                    df[output_col] = df.apply(
+                        lambda row: l5_values.get((row['Game_ID'], row['Opponent_Team_ID'], row['Team_ID']), None), axis=1
+                    )
 
     return team_data
 
@@ -316,10 +261,6 @@ def add_calculated_columns(team_data, column_operations):
     
     return team_data
 
-
-
-
-
 def process_grouped_data(team_df):
     """Processes grouped data for a specific team DataFrame."""
     # Extract the highest season value without modifying the original column
@@ -330,8 +271,7 @@ def process_grouped_data(team_df):
 
     # Convert GAME_DATE to datetime for sorting
     filtered_df["_GAME_DATE_SORT"] = pd.to_datetime(filtered_df["GAME_DATE"], format='%m/%d/%Y', errors='coerce')    
-
-
+    
     # Group by Opponent_Team_ID and keep the top 5 entries per group
     grouped = (
         filtered_df.sort_values(by="_GAME_DATE_SORT", ascending=False)
@@ -343,7 +283,8 @@ def process_grouped_data(team_df):
     calculate_opponent_h2h(grouped)
 
     # Calculate last 5 games
-    calculate_last_5_games(grouped)    
+    calculate_last_5_games(grouped)
+
 
     calculate_multiple_block_averages_by_columns(
         grouped, 
@@ -351,7 +292,6 @@ def process_grouped_data(team_df):
         new_column_names=["L5" ,"L5_T1_OFF_RTG", "L5_T1_DEF_RTG"], 
         block_size=5
     )
-    
 
     # Drop the temporary sorting column
     grouped = grouped.drop(columns=["_GAME_DATE_SORT"])
@@ -425,6 +365,9 @@ def process_AllTeam_ST(team_data):
     - None: The function modifies the team_data dictionary in place.
     """
 
+    if "All Teams_ST" not in team_data:
+        return  # No need to print anything, just return
+
     # Step 1: Add "5 Last games" to "All Teams_ST"
     add_5_last_games_to_all_teams(team_data)
 
@@ -467,7 +410,8 @@ def add_5_last_games_to_all_teams(team_data):
                 
                 # Extract the first value from the "5 Last games" column
                 if "5 Last games" in data.columns:
-                    last_games_value = data["5 Last games"].iloc[0]
+                    # last_games_value = data["5 Last games"].iloc[0]
+                    last_games_value = data["5 Last games"].dropna().iloc[-1]  # Get the last non-null value                    
                     
                     # Create a new row for "All Teams_ST"
                     new_row = pd.DataFrame({
@@ -479,3 +423,139 @@ def add_5_last_games_to_all_teams(team_data):
                     # Append the new row to "All Teams_ST"
                     team_data["All Teams_ST"] = pd.concat([all_teams_st_df, new_row], ignore_index=True)
                     all_teams_st_df = team_data["All Teams_ST"]  # Update reference for the next iteration
+
+def get_full_list_by_column(dual_lookup: Dict[str, Any], column_name: str) -> List[str]:
+    """
+    Returns the full list of keys for a given column in the dual_lookup dictionary.
+
+    Parameters:
+        dual_lookup (dict): The dual lookup structure.
+        column_name (str): The column name to retrieve keys for.
+
+    Returns:
+        list: List of keys for the specified column.
+    """
+    if column_name not in dual_lookup:
+        raise ValueError(f"Column name '{column_name}' not found in lookup")
+
+    if column_name in ["Game_ID", "DateFormated"]:
+        return list(dual_lookup[column_name].keys())
+    
+    raise ValueError(f"Unsupported column name: {column_name}")
+
+def filter_by_condition(
+    dual_lookup: Dict[str, Any],
+    filter_column: str,
+    condition_value: str,
+    full_info: bool = True
+):
+    if filter_column not in dual_lookup:
+        raise ValueError(f"Invalid filter column: {filter_column}")
+
+    if filter_column == "Game_ID":
+        game_id = dual_lookup["Game_ID"].get(condition_value)
+        if game_id:
+            yield dual_lookup["Games"][game_id] if full_info else game_id
+
+    elif filter_column == "DateFormated":
+        game_ids = dual_lookup["DateFormated"].get(condition_value, [])
+        for game_id in game_ids:
+            yield {**dual_lookup["Games"][game_id], "Game_ID": game_id} if full_info else game_id
+
+
+
+def get_game_ids_and_dates_dual_lookup(
+    team_data: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Generates a dual lookup structure from team data.
+
+    Parameters:
+        team_data (dict): Dictionary containing team data.
+
+    Returns:
+        dict: A dual lookup dictionary with games, Game_ID lookup, and DateFormated lookup.
+    """
+    filtered_data = {key: value for key, value in team_data.items() if key.endswith("_RS")}
+
+    games = {}
+    game_id_lookup = {}
+    date_formatted_lookup = {}
+
+    for df in filtered_data.values():
+        # Check required columns exist
+        required_columns = {"Game_ID", "DateFormated", "Team_1", "Team_2", "Team_ID", "Opponent_Team_ID"}
+        if not required_columns.issubset(df.columns):
+            continue
+
+        for _, row in df.iterrows():
+            game_id = row["Game_ID"]
+            date_formatted = row["DateFormated"]
+
+            # Populate Games dictionary
+            games.setdefault(game_id, {
+                "DateFormated": date_formatted,
+                "Team_1": row["Team_1"],
+                "Team_2": row["Team_2"],
+                "Team_ID": row["Team_ID"],
+                "Opponent_Team_ID": row["Opponent_Team_ID"],
+                "SheetTeamName": f"{row['Team_1'].replace(' ', '-')}_BXSC",
+                "SheetOpTeamName": f"{row['Team_2'].replace(' ', '-')}_BXSC",
+            })
+
+            # Populate Game_ID lookup
+            game_id_lookup.setdefault(game_id, game_id)
+
+            # Populate DateFormated lookup without duplicates
+            if date_formatted not in date_formatted_lookup:
+                date_formatted_lookup[date_formatted] = set()
+            date_formatted_lookup[date_formatted].add(game_id)
+
+    # Convert sets to lists for compatibility
+    return {
+        "Games": games,
+        "Game_ID": game_id_lookup,
+        "DateFormated": {k: list(v) for k, v in date_formatted_lookup.items()}
+    }
+
+
+def format_date_column(stats_data):
+    for key, df in stats_data.items():
+        if key.endswith(("_RS", "_BXSC")):
+            if 'DateFormated' in df.columns:
+                # Convert the 'DateFormated' column to the specified format in-place
+                df['DateFormated'] = pd.to_datetime(df['DateFormated']).dt.strftime('%d/%m/%Y')
+
+def get_yesterday_date():
+    return (datetime.now() - timedelta(days=1)).strftime('%d/%m/%Y')
+
+def save_dual_lookup(dual_lookup):
+    with open("dual_lookup.json", "w") as json_file:
+        json.dump(dual_lookup, json_file, indent=4)
+
+def filter_relevant_data(stats_data):
+    filtered_data = {key: df for key, df in stats_data.items() if key.endswith(("_RS", "_BXSC"))}
+    return filtered_data
+
+def get_unique_game_ids_teamnames_based_on_date(dual_lookup, yesterday_date):
+    unique_data = list(filter_by_condition(dual_lookup, "DateFormated", yesterday_date))    
+    return unique_data  # Convert to a list if needed
+
+
+def get_sheetnames_for_game_ids(dual_lookup, unique_game_ids):
+    sheetnames = set()
+    for game_id in unique_game_ids:
+        game_entry = dual_lookup["Games"].get(game_id)
+        if game_entry:
+            sheetnames.update([game_entry["SheetTeamName"], game_entry["SheetOpTeamName"]])
+    return list(sheetnames)
+
+
+def get_unique_gameids_teamnames_by(stats_data):    
+    filtered_data = filter_relevant_data(stats_data)    
+      
+    yesterday_date = get_yesterday_date()    
+    dual_lookup = get_game_ids_and_dates_dual_lookup(filtered_data)    
+    unique_game_ids_teamnames = get_unique_game_ids_teamnames_based_on_date(dual_lookup, yesterday_date)    
+        
+    return unique_game_ids_teamnames

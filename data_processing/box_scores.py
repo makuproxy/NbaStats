@@ -31,18 +31,88 @@ def fetch_box_score(game_id):
     return result_box_score
 
 
-def get_recent_box_scores(df, game_logs_df, teamIdLookup):
-    top_5_dates = pd.to_datetime(df['DateFormated'], format='%m/%d/%Y').nlargest(5).dt.strftime('%m/%d/%Y')
-    filtered_games = game_logs_df[game_logs_df['GAME_DATE'].isin(top_5_dates)]
+def get_recent_box_scores(df, game_logs_df, teamIdLookup):    
+    df['DateFormated'] = pd.to_datetime(df['DateFormated'], format='%m/%d/%Y')    
+    game_logs_df['GAME_DATE'] = pd.to_datetime(game_logs_df['GAME_DATE'], format='%m/%d/%Y')
+        
+    # Merge the game logs with the team data based on the DateFormated column
+    merged_df = pd.merge(
+        game_logs_df, 
+        df[['DateFormated']], 
+        left_on='GAME_DATE', 
+        right_on='DateFormated', 
+        how='inner'
+    )
     
+    # Initialize list to collect the box scores
     box_scores = []
-    for idx, game_id in enumerate(filtered_games['Game_ID']):
+    
+    # Iterate through the filtered merged dataframe
+    for _, row in merged_df.iterrows():
+        game_id = row['Game_ID']
+        opponent_id = row['Opponent_Team_ID']
+        date_formatted = row['DateFormated'].strftime('%m/%d/%Y') 
+        # date_formatted = row['DateFormated'].strftime('%d/%m/%Y') 
+        
+        # Fetch the box score for the current game
         box_score_df = fetch_box_score(game_id)
-        opponent_id = filtered_games['Opponent_Team_ID'].iloc[idx]  # Get the opponent ID for the current game
-        filtered_box_score_df = box_score_df[box_score_df['TEAM_ID'] == teamIdLookup].copy()  # Make a copy to avoid the warning
+        box_score_df.insert(0, 'DateFormated', date_formatted)
+        
+        # Filter the box score DataFrame for the given teamIdLookup
+        # filtered_box_score_df = box_score_df[box_score_df['TEAM_ID'] == teamIdLookup]
+        box_score_df.loc[box_score_df['TEAM_ID'] == teamIdLookup, 'BX_Opponent_Team_ID'] = opponent_id
+        
+        filtered_box_score_df = box_score_df[box_score_df['TEAM_ID'] == teamIdLookup]
         
         if not filtered_box_score_df.empty:
-            filtered_box_score_df.loc[:, 'BX_Opponent_Team_ID'] = opponent_id  # Add the opponent ID to the box score
+            # Add the opponent ID to the filtered box score
+            # filtered_box_score_df.loc[:, 'BX_Opponent_Team_ID'] = opponent_id
             box_scores.append(filtered_box_score_df)
     
-    return box_scores
+    if box_scores:
+        box_scores.reverse()  # In-place reversal of the list order based on their appearance
+        return box_scores
+    else:
+        return []
+    
+
+def process_box_scores_by_uniquegameIds(unique_game_ids_team_names, boxscoreDataToUpdate):
+    # Dictionary to store stats data
+    stats_data = {}
+
+    # Iterate through each entry in boxscoreDataToUpdate
+    for entry in boxscoreDataToUpdate:
+        date_formatted = entry.get("DateFormated")
+        game_id = entry.get("GAME_ID")
+        teams_duplicates = entry.get("TeamsDuplicates", {})
+
+        # Iterate through the teams and check if any has False in TeamsDuplicates
+        for team_name, team_data in teams_duplicates.items():
+            if not team_data["Duplicate"]:  # Team is not duplicated
+                # Find the corresponding entry in unique_game_ids_team_names
+                for unique_entry in unique_game_ids_team_names:
+                    # Check if either SheetTeamName or SheetOpTeamName matches the team name
+                    if team_name == unique_entry["SheetTeamName"]:
+                        OppBxsc = unique_entry["Opponent_Team_ID"]
+                        currentTeamId = unique_entry["Team_ID"]
+                        break
+                    elif team_name == unique_entry["SheetOpTeamName"]:
+                        OppBxsc = unique_entry["Team_ID"]
+                        currentTeamId = unique_entry["Opponent_Team_ID"]
+                        break
+                
+                # Now fetch the box score for this game_id
+                box_score_df = fetch_box_score(game_id)
+                box_score_df = box_score_df[box_score_df['TEAM_ID'] == currentTeamId]
+
+                # Insert the DateFormated field to the dataframe
+                box_score_df.insert(0, 'DateFormated', date_formatted)
+                box_score_df['BX_Opponent_Team_ID'] = OppBxsc
+
+                # Store the box_score_df in stats_data with the team name as the key
+                stats_data[team_name] = box_score_df
+                
+                # Optional: If you want to break after the first team with False, you can do so
+                break
+
+    return stats_data

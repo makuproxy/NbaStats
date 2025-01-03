@@ -67,7 +67,7 @@ class DataProcessor:
         team_df['TOTAL'] = team_df['PTS_H'] + team_df['PTS_V']
 
         team_df['url_year'] = year_per_url        
-        team_df['DateFormated'] = pd.to_datetime(team_df['Date'], errors='coerce').dt.strftime('%m/%d/%Y')                
+        team_df['DateFormated'] = pd.to_datetime(team_df['Date'], errors='coerce').dt.strftime('%m/%d/%Y')
 
         return team_df
 

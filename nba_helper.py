@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import re
 import logging
 from logging_config import setup_logging
+from api_helpers import generate_headers, retry_with_backoff
 # from fake_useragent import UserAgent
 # from typing import Callable
 
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 # pd.set_option('display.max_rows', None)
 # pd.set_option('display.max_columns', None)
 
-def getMatchesByDate(targetDate=None, entity_columns=None):
+def getMatchesByDate(targetDate=None, entity_columns=None, unique_game_ids=None):
     """
     Fetch NBA game data for a specific date with optional column filtering per entity.
     
@@ -57,8 +58,15 @@ def getMatchesByDate(targetDate=None, entity_columns=None):
             raise ValueError(f"Invalid date format for targetDate. Expected 'YYYY-MM-DD', but got: {targetDate}")
 
     # Fetch data from NBA API
-    data = scoreboardv2.ScoreboardV2(game_date=targetDate)
+    # data = scoreboardv2.ScoreboardV2(game_date=targetDate)
+
+    def fetch_data():
+        headers = generate_headers()
+        datascoreboard = scoreboardv2.ScoreboardV2(game_date=targetDate, headers=headers,timeout=75)
+        return datascoreboard
     
+    data = retry_with_backoff(fetch_data)    
+
     # List of valid entities
     valid_entities = [
         "available",
@@ -88,7 +96,10 @@ def getMatchesByDate(targetDate=None, entity_columns=None):
             continue
         
         # Fetch DataFrame for the entity
-        df = getattr(data, entity).get_data_frame()        
+        df = getattr(data, entity).get_data_frame()
+
+        # if "GAME_ID" in df.columns and unique_game_ids is not None:
+        #     df = df[df["GAME_ID"].isin(unique_game_ids)]
 
         # If specific columns are requested, filter them
         if columns:
@@ -103,7 +114,8 @@ def getMatchesByDate(targetDate=None, entity_columns=None):
         df = add_team_names(df, columns, team_dict)
 
         # Add the new column 'GAME_DATE' with the format 'DD/MM/YYYY'
-        df['GAME_DATE'] = datetime.strptime(targetDate, '%Y-%m-%d').strftime('%m/%d/%Y')
+        df['GAME_DATE'] = datetime.strptime(targetDate, '%Y-%m-%d').strftime('%d/%m/%Y')
+        
 
         result[entity] = df       
 
@@ -123,9 +135,9 @@ def add_team_names(df, columns, team_dict):
     """
     if any(col in ["HOME_TEAM_ID", "VISITOR_TEAM_ID"] for col in columns):
         if "HOME_TEAM_ID" in df.columns:
-            df["HOME_TEAM_NAME"] = df["HOME_TEAM_ID"].apply(lambda team_id: team_dict.get(team_id, team_id))
+            df["HOME_TEAM_NAME"] = df["HOME_TEAM_ID"].apply(lambda team_id: team_dict.get(team_id, team_id)).str.upper()
         if "VISITOR_TEAM_ID" in df.columns:
-            df["VISITOR_TEAM_NAME"] = df["VISITOR_TEAM_ID"].apply(lambda team_id: team_dict.get(team_id, team_id))
+            df["VISITOR_TEAM_NAME"] = df["VISITOR_TEAM_ID"].apply(lambda team_id: team_dict.get(team_id, team_id)).str.upper()
     return df
 
 
@@ -134,12 +146,14 @@ def add_team_names(df, columns, team_dict):
 def getMatchesForCurrentDay(entity_columns):    
     return getMatchesByDate(entity_columns=entity_columns)
 
-def getMatchesAndResultsFromYesterday(entity_columns):
+def getMatchesAndResultsFromYesterday(entity_columns, targetDate=None, unique_game_ids=None):
     
-    targetDate = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    if not targetDate:
+        targetDate = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    
 
     # Fetch the data
-    data = getMatchesByDate(targetDate=targetDate, entity_columns=entity_columns)
+    data = getMatchesByDate(targetDate=targetDate, entity_columns=entity_columns, unique_game_ids=unique_game_ids)
 
     # Enrich the results if requested
     if "game_header" in data and "line_score" in data:

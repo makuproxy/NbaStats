@@ -218,7 +218,7 @@ class GoogleSheetsService:
                     end_col=len(df.columns)  # Adjusting for the number of columns in df
                 ))
 
-            if index % 20 == 0:
+            if index % 10 == 0:
                 print(f"Processed {index} teams.")
                 time.sleep(GSheetSetting.TIME_DELAY)
         return update_requests

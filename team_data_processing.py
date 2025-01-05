@@ -105,8 +105,8 @@ def process_team_data_rs(team_data, grouped_data):
     # Add opposite columns
     team_data = add_opposite_columns(
         team_data,  
-        columns_to_analyze=["L5", "L5_T1_OFF_RTG", "L5_T1_DEF_RTG"],  
-        output_columns=["L5_OP", "L5_T2_OFF_RTG", "L5_T2_DEF_RTG"]  
+        columns_to_analyze=["L5", "OFFRTG T1", "DEFRTG T1"],  
+        output_columns=["L5_OP", "OFFRTG T2", "DEFRTG T2"]  
     )
 
     # Add L5_HV column
@@ -123,8 +123,8 @@ def process_team_data_rs(team_data, grouped_data):
     columns_to_drop = ["GAME_DATE", "Seasons"]
     column_order = [
         "Game_ID", "DateFormated", "IsLocal", "Team_1", "PTS_1", "PTS_2", "Team_2", 
-        "TOTAL", "L5", "L5_OP", "L5_HV", "Target", "L5_T1_OFF_RTG", "L5_T1_DEF_RTG", "L5_T2_OFF_RTG", 
-        "L5_T2_DEF_RTG", "PTS_UNDER_15", "PTS_UNDER", "ODD_UNDER", "PTS_OVER_15", "PTS_OVER", "ODD_OVER", 
+        "TOTAL", "L5", "L5_OP", "L5_HV", "Target", "OFFRTG T1", "DEFRTG T1", "OFFRTG T2", 
+        "DEFRTG T2", "PTS_UNDER_15", "PTS_UNDER", "ODD_UNDER", "PTS_OVER_15", "PTS_OVER", "ODD_OVER", 
         "WL", "Team_ID", "Opponent_Team_ID", "Home", "PTS_H", "PTS_V", "Visitor", "Opponent H2H", "5 Last games"
     ]
 
@@ -177,7 +177,7 @@ def add_opposite_columns(team_data, columns_to_analyze, output_columns):
         for key, df in team_data.items():
             if key.endswith("_RS"):  # Check if the key ends with '_RS'
                 if analyze_col in df.columns:
-                    # Create a lookup dictionary for the analyzed column (e.g., 'L5', 'L5_T1_OFF_RTG', etc.)
+                    # Create a lookup dictionary for the analyzed column (e.g., 'L5', 'OFFRTG T1', etc.)
                     for idx, row in df.iterrows():
                         if pd.notna(row[analyze_col]):
                             opponent_team_id = row['Opponent_Team_ID']
@@ -198,7 +198,7 @@ def add_opposite_columns(team_data, columns_to_analyze, output_columns):
                                             l5_values[(game_id, opponent_team_id, team_id)] = matching_rows.iloc[0][analyze_col]
                                             break
 
-                    # Assign the calculated column (e.g., 'L5_OP', 'L5_T2_OFF_RTG') based on the lookup
+                    # Assign the calculated column (e.g., 'L5_OP', 'OFFRTG T2') based on the lookup
                     df[output_col] = df.apply(
                         lambda row: l5_values.get((row['Game_ID'], row['Opponent_Team_ID'], row['Team_ID']), None), axis=1
                     )
@@ -289,7 +289,7 @@ def process_grouped_data(team_df):
     calculate_multiple_block_averages_by_columns(
         grouped, 
         target_columns=["PTS_1" ,"TX_OFF_RATING", "TX_DEF_RATING"], 
-        new_column_names=["L5" ,"L5_T1_OFF_RTG", "L5_T1_DEF_RTG"], 
+        new_column_names=["L5" ,"OFFRTG T1", "DEFRTG T1"], 
         block_size=5
     )
 
@@ -465,7 +465,8 @@ def filter_by_condition(
 
 
 def get_game_ids_and_dates_dual_lookup(
-    team_data: Dict[str, Any]
+    team_data: Dict[str, Any],
+    yesterdayDate: str  # Add the parameter for yesterday's date
 ) -> Dict[str, Any]:
     """
     Generates a dual lookup structure from team data.
@@ -476,6 +477,8 @@ def get_game_ids_and_dates_dual_lookup(
     Returns:
         dict: A dual lookup dictionary with games, Game_ID lookup, and DateFormated lookup.
     """
+    yesterdayDate = datetime.strptime(yesterdayDate, "%d/%m/%Y")
+
     filtered_data = {key: value for key, value in team_data.items() if key.endswith("_RS")}
 
     games = {}
@@ -489,6 +492,15 @@ def get_game_ids_and_dates_dual_lookup(
             continue
 
         for _, row in df.iterrows():
+            # Convert the 'DateFormated' column to a datetime object
+            game_date = datetime.strptime(row["DateFormated"], "%d/%m/%Y")
+
+            # Only process rows where DateFormated is less than or equal to yesterdayDate
+            if game_date != yesterdayDate:
+                continue
+            
+            # print(f"Dates:  Input Yesterday {yesterdayDate}  --- Calculated Game Date {game_date}")
+
             game_id = row["Game_ID"]
             date_formatted = row["DateFormated"]
 
@@ -555,7 +567,8 @@ def get_unique_gameids_teamnames_by(stats_data):
     filtered_data = filter_relevant_data(stats_data)    
       
     yesterday_date = get_yesterday_date()    
-    dual_lookup = get_game_ids_and_dates_dual_lookup(filtered_data)    
+    dual_lookup = get_game_ids_and_dates_dual_lookup(filtered_data, yesterday_date)
+    # save_dual_lookup(dual_lookup)    
     unique_game_ids_teamnames = get_unique_game_ids_teamnames_based_on_date(dual_lookup, yesterday_date)    
         
     return unique_game_ids_teamnames

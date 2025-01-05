@@ -88,7 +88,9 @@ def process_box_scores_by_uniquegameIds(unique_game_ids_team_names, boxscoreData
 
         # Iterate through the teams and check if any has False in TeamsDuplicates
         for team_name, team_data in teams_duplicates.items():
+            # print(f"Team_name --> {team_name} ----- Team_data --> {team_data}")
             if not team_data["Duplicate"]:  # Team is not duplicated
+                print(f"Processing team: {team_name}")
                 # Find the corresponding entry in unique_game_ids_team_names
                 for unique_entry in unique_game_ids_team_names:
                     # Check if either SheetTeamName or SheetOpTeamName matches the team name
@@ -111,8 +113,5 @@ def process_box_scores_by_uniquegameIds(unique_game_ids_team_names, boxscoreData
 
                 # Store the box_score_df in stats_data with the team name as the key
                 stats_data[team_name] = box_score_df
-                
-                # Optional: If you want to break after the first team with False, you can do so
-                break
 
     return stats_data

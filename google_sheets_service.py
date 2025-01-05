@@ -1,5 +1,6 @@
 import gspread
 from google.oauth2.service_account import Credentials
+from api_helpers import retry_on_quota_error_with_backoff
 from constants import (
     GSheetSetting
 )
@@ -33,6 +34,7 @@ class GoogleSheetsService:
         credentials_dict = json.loads(decoded_credentials)
         return Credentials.from_service_account_info(credentials_dict, scopes=GSheetSetting.SCOPE)
 
+    @retry_on_quota_error_with_backoff(max_retries=5, initial_delay=45)
     def open_or_create_spreadsheet(self, sheet_name):
         existing_spreadsheets = self.gc.list_spreadsheet_files(folder_id=self.folder_id)
         spreadsheet_exists = any(sheet_name == sheet['name'] for sheet in existing_spreadsheets)
@@ -72,7 +74,9 @@ class GoogleSheetsService:
             if sheet.title != "BaseNoDelete":
                 spread_sheet_main.del_worksheet(sheet)
 
+    @retry_on_quota_error_with_backoff(max_retries=5, initial_delay=45) 
     def create_or_get_worksheet(self, spread_sheet_main, team_name):
+        logger.info(f"We are in {team_name}")
         try:
             return spread_sheet_main.worksheet(title=team_name)
         except gspread.exceptions.WorksheetNotFound:
@@ -146,6 +150,7 @@ class GoogleSheetsService:
 
 
             if team_name.endswith("_RS"):
+                
                 column_mapping_rs = {
                     "A" : "Game_ID",
                     "B" : "DateFormated",
@@ -158,10 +163,10 @@ class GoogleSheetsService:
                     "I" : "L5",
                     "J" : "L5_OP",
                     "K" : "L5_HV",
-                    "M" : "L5_T1_OFF_RTG",
-                    "N" : "L5_T1_DEF_RTG",
-                    "O" : "L5_T2_OFF_RTG",
-                    "P" : "L5_T2_DEF_RTG",
+                    "M" : "OFFRTG T1",
+                    "N" : "DEFRTG T1",
+                    "O" : "OFFRTG T2",
+                    "P" : "DEFRTG T2",
                     "Q" : "PTS_UNDER_15",
                     "T" : "PTS_OVER_15",                    
                     "X" : "WL",
@@ -218,7 +223,7 @@ class GoogleSheetsService:
                     end_col=len(df.columns)  # Adjusting for the number of columns in df
                 ))
 
-            if index % 10 == 0:
+            if index % 20 == 0:
                 print(f"Processed {index} teams.")
                 time.sleep(GSheetSetting.TIME_DELAY)
         return update_requests
@@ -242,6 +247,7 @@ class GoogleSheetsService:
         # If team_name_key is not found, return None
         return None
 
+    @retry_on_quota_error_with_backoff(max_retries=5, initial_delay=45) 
     def process_all_teams_st(self, spread_sheet_main, all_teams_df):
         update_requests = []
         try:
@@ -377,7 +383,7 @@ class GoogleSheetsService:
 
         logger.info("END  SAVING MATCHES OF THE DAY BEFORE")
         
-        time.sleep(10)
+        
         gs_end_time = time.time()
         print(f"Total time taken: {gs_end_time - gs_start_time:.2f} seconds to upload all data into Sheets")
 
@@ -452,7 +458,8 @@ class GoogleSheetsService:
         # Get the last cell with data in each column
         last_cells = {}
         for col in columns_sorted:
-            values = sheet.col_values(ord(col) - ord("A") + 1)  # Convert column letter to index
+            # values = sheet.col_values(ord(col) - ord("A") + 1)  # Convert column letter to index
+            values = self._get_column_values_ord(sheet, col)
             last_cells[col] = len(values) if values else 0
         return last_cells
 
@@ -491,15 +498,36 @@ class GoogleSheetsService:
                 )
         return update_requests
     
+    @retry_on_quota_error_with_backoff(max_retries=5, initial_delay=45)
+    def _get_column_values_ord(self, sheet, col):
+        logger.info("Trying to get column_values ")        
+        return sheet.col_values(ord(col) - ord('A') + 1)
+    
+    @retry_on_quota_error_with_backoff(max_retries=5, initial_delay=45)
+    def _get_column_values(self, sheet, col):
+        logger.info("Trying to get column_values ")        
+        return sheet.col_values(col)
+
+
     def _get_existing_rows(self, sheet, columns_mapping):
         # Read the existing rows from the sheet for the specified columns
         existing_rows = []
         max_length = 0
         
+        # for col, column_name in columns_mapping.items():
+        #     column_values = sheet.col_values(ord(col) - ord('A') + 1)  # Convert column letter to index
+        #     max_length = max(max_length, len(column_values))
+        #     existing_rows.append(column_values)
+
         for col, column_name in columns_mapping.items():
-            column_values = sheet.col_values(ord(col) - ord('A') + 1)  # Convert column letter to index
-            max_length = max(max_length, len(column_values))
-            existing_rows.append(column_values)
+            try:
+                # Call the decorated method to fetch column values with retry logic
+                column_values = self._get_column_values_ord(sheet, col)
+                max_length = max(max_length, len(column_values))
+                existing_rows.append(column_values)
+            except Exception as e:
+                # Raise an exception and stop the process if any API call fails
+                raise Exception(f"Failed to retrieve column {col}: {e}")
         
         # Pad columns with None to ensure equal length
         for i in range(len(existing_rows)):
@@ -758,12 +786,9 @@ class GoogleSheetsService:
                 sheet_op_team_name: {"Duplicate": False, "LastRow": 0}
             }
             
-            combined_existing_ids = set()
             
             for sheet_name in sheet_names:                
-                sheet = self.create_or_get_worksheet(spread_sheet_main, sheet_name)                
-                
-                # To calculate last row sample
+                sheet = self.create_or_get_worksheet(spread_sheet_main, sheet_name)
                 existing_rows = self._get_existing_rows(sheet, columns_mapping)
 
                 if not existing_rows:
@@ -775,16 +800,16 @@ class GoogleSheetsService:
                     if row["DateFormated"] is not None and row["GAME_ID"] is not None
                 )
                 
-                if unique_rows:
-                    combined_existing_ids.update(unique_rows)
-                
                 # Check for duplicate condition and set LastRow only when Duplicate is False
-                if unique_rows and (date_formatted.strip(), game_id.strip()) in combined_existing_ids:
+                # if unique_rows and (date_formatted.strip(), game_id.strip()) in combined_existing_ids:
+                if (date_formatted.strip(), game_id.strip()) in unique_rows:
                     # Set duplicate status to True
+                    print(f"Duplicate found: {date_formatted.strip()}, {game_id.strip()}")
                     teams_duplicates[sheet_name]["Duplicate"] = True
                     teams_duplicates[sheet_name]["LastRow"] = 0  # Set to 0 if duplicate is found
-                else:                    
-                    column_a_values = sheet.col_values(1)
+                else:
+                    # column_a_values = sheet.col_values(1)
+                    column_a_values = self._get_column_values(sheet, 1)
                     last_row = len(column_a_values) if column_a_values else 0
                     teams_duplicates[sheet_name]["LastRow"] = last_row
             

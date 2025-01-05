@@ -111,7 +111,6 @@ if __name__ == "__main__":
         boxscoreDataToUpdate = sheets_service.process_boxscore_sheets(spread_sheet_main, unique_game_ids_team_names)
         append_BXSC_by_uniqueGameId(stats_data, unique_game_ids_team_names, boxscoreDataToUpdate)
 
-        time.sleep(30)
 
         nba_data_service = NbaDataService(unique_game_ids)
         
@@ -123,7 +122,7 @@ if __name__ == "__main__":
         # json_data = stats_df.to_json(orient="records", lines=True)
 
         # # Write to a file
-        # with open('Testing.json', 'w') as json_file:
+        # with open('TestingBox.json', 'w') as json_file:
         #     json_file.write(json_data)
         
         # div = 1/0

@@ -5,6 +5,8 @@ import logging
 from logging_config import setup_logging
 from fake_useragent import UserAgent
 from typing import Callable
+from functools import wraps
+from gspread.exceptions import APIError
 
 
 setup_logging()
@@ -49,3 +51,25 @@ def retry_with_backoff(
                 raise
             time.sleep(timeout + np.random.uniform(1, 3))  # Add jitter
             timeout *= backoff_factor
+
+
+def retry_on_quota_error_with_backoff(max_retries=5, initial_delay=61):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            retries = 0
+            delay = initial_delay
+            while retries < max_retries:
+                try:
+                    return func(*args, **kwargs)
+                except APIError as e:
+                    if e.response.status_code == 429:  # Rate-limit exceeded
+                        retries += 1
+                        print(f"Quota limit exceeded. Retrying in {delay} seconds... (Attempt {retries}/{max_retries})")
+                        time.sleep(delay)
+                        delay *= 2  # Exponential backoff
+                    else:
+                        raise
+            raise Exception(f"Max retries reached due to quota limit.")
+        return wrapper
+    return decorator

@@ -589,7 +589,15 @@ class GoogleSheetsService:
         Returns:
             Dictionary representing the cell value.
         """
-        value = row.get(column_name)
+        # value = row.get(column_name)
+        # If `row` is a dictionary, we can use .get() to fetch the value
+        if isinstance(row, dict):
+            value = row.get(column_name)
+        else:
+            # If `row` is not a dictionary, handle by index or alternative logic
+            value = row  
+
+        
         if pd.isna(value):  # Handle NaN or None values
             return {'userEnteredValue': {'stringValue': ''}}
         elif isinstance(value, (int, float)):
@@ -822,4 +830,37 @@ class GoogleSheetsService:
             final_results.append(result)
 
         return final_results
+  
+    def BulkDataPlayers(self, spreadSheetName, SheetName, dataPlayers):
+        # Step 1: Open or create the spreadsheet
+        spread_sheet_main = self.open_or_create_spreadsheet(spreadSheetName)
+        
+        # Step 2: Create or get the worksheet
+        sheet = self.create_or_get_worksheet(spread_sheet_main, SheetName)
+        
+        # Step 3: Create AvatarUrl column (using PLAYER_ID)
+        dataPlayers['AvatarUrl'] = dataPlayers['PLAYER_ID'].apply(
+            lambda player_id: f"https://cdn.nba.com/headshots/nba/latest/1040x760/{player_id}.png"
+        )
+        
+        # Step 4: Prepare the data from the DataFrame
+        columns = dataPlayers.columns.tolist()  # Store columns list outside the loop
+        all_rows = dataPlayers.values.tolist()  # Get all rows in list form
+        
+        # Step 5: Prepare the rows to update by applying _prepare_cell_value to all values
+        rows_to_update = []
 
+        # Add the header row first
+        header_row = [self._prepare_cell_value(col, col) for col in columns]
+        rows_to_update.append({'values': header_row})
+
+        # Now add the data rows
+        for row in all_rows:
+            row_values = [self._prepare_cell_value(row[col_index], columns[col_index]) for col_index in range(len(columns))]
+            rows_to_update.append({'values': row_values})
+        
+        # Step 6: Build the update request
+        update_request = self._build_update_request(sheet, rows_to_update, 0, 0, len(columns))
+
+        # Step 7: Execute the batch update
+        self._execute_batch_update(spread_sheet_main, [update_request])

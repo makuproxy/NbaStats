@@ -28,8 +28,8 @@ def generate_headers() -> dict:
 
 def retry_with_backoff(
     func: Callable, 
-    max_retries: int = 3, 
-    initial_timeout: int = 75, 
+    max_retries: int = 5, 
+    initial_timeout: int = 61, 
     backoff_factor: float = 1.5
 ):
     """

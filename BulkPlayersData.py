@@ -35,7 +35,7 @@ def fetch_teams_data(team_ids):
             teamPlayersData = playersRooster.get_data_frames()[0]
             
             # Step 2: Select relevant columns
-            teamPlayersData = teamPlayersData[['TeamID', 'PLAYER', 'NUM', 'POSITION', 'HEIGHT', 'WEIGHT', 'PLAYER_ID']]
+            teamPlayersData = teamPlayersData[['TEAM_ID', 'PLAYER', 'NUM', 'POSITION', 'HEIGHT', 'WEIGHT', 'PLAYER_ID']]
 
             # Step 3: Function to convert HEIGHT from feet-inches to meters (with rounding)
             def convert_height(height_str):

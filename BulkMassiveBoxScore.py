@@ -2,9 +2,10 @@ import pandas as pd
 import json
 from nba_api.stats.endpoints import leaguegamelog
 from constants import (
-    GeneralSetting
+    GeneralSetting,
+    GSheetSetting
 )
-
+import os
 import asyncio
 import aiohttp
 import logging
@@ -17,10 +18,54 @@ from concurrent.futures import ThreadPoolExecutor
 from helpers import BasketballHelpers
 import numpy as np
 from tenacity import retry, wait_random_exponential, stop_after_attempt, retry_if_exception_type
-
+from google_sheets_service import GoogleSheetsService
+from datetime import datetime
+import re
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# team_dictHyphen = {team['id']: team['team_name_hyphen'] for team in GeneralSetting.ALL_STATIC_TEAMS}
+
+# def load_json_to_dataframe(json_file_path):
+#     """
+#     Load JSON data from a file into a pandas DataFrame.
+#     """
+#     with open(json_file_path, 'r', encoding='utf-8') as file:  # Specify encoding here
+#         data = json.load(file)
+#     return pd.DataFrame(data)
+
+# sheets_service = GoogleSheetsService(GSheetSetting.FOLDER_ID)
+
+
+# team_name_pattern = re.compile(r"game_data_batch_\d+______([A-Za-z-]+)\.json")
+# current_directory = os.getcwd()
+
+# for filename in os.listdir(current_directory):
+#     if filename.endswith(".json"):
+#         # Use regex to find the team name
+#         match = team_name_pattern.search(filename)
+#         if match:
+#             team_name = match.group(1)  # Extract the team name
+#             print(f"Found team name: {team_name}")
+            
+#             # Get the file path
+#             file_path = os.path.join(current_directory, filename)
+            
+#             # Load JSON data to DataFrame
+#             stats_data = load_json_to_dataframe(file_path)
+
+#             # Now use the extracted team name as needed
+#             filename_without_extension = f"{team_name}_BXSC"            
+#             sheets_service._update_spreadsheet(GeneralSetting.FILENAME_OUTPUT, filename_without_extension, stats_data)
+#             try:
+#                 print(f"Processing file '{filename_without_extension}'")
+#             except Exception as e:
+#                 print(f"Error processing file '{filename}': {e}")
+
+
+
+
 
 
 MAX_RETRIES = 10  
@@ -134,11 +179,12 @@ def process_data(results):
             cols_to_fill = ['FGM', 'FGA', 'FG3M', 'FG3A', 'FTM', 'FTA', 'OREB', 'DREB', 'REB', 'AST', 'STL', 'BLK', 'TO', 'PF', 'PTS']
             processed_batch_data[cols_to_fill] = processed_batch_data[cols_to_fill].fillna(0).astype(int).astype(str)
 
-            pct_cols = ['FG_PCT', 'FG3_PCT', 'FT_PCT']
-            
+            pct_cols = ['FG_PCT', 'FG3_PCT', 'FT_PCT']            
             processed_batch_data[pct_cols] = processed_batch_data[pct_cols].multiply(100, axis=0)
+
+            
             processed_batch_data[pct_cols] = processed_batch_data[pct_cols].map(
-                lambda x: f"{int(x)}" if pd.notna(x) else np.nan
+                lambda x: str(int(x)) if pd.notna(x) and x == 100 else f"{x:.1f}" if pd.notna(x) else np.nan
             )
 
             processed_batch_data['PLAYER_CONDITION'] = (
@@ -188,7 +234,7 @@ def fetch_and_save(team_game_info_dict, batch_size=1, delay_between_batches=3):
         batch_team_ids = team_ids[i:i + batch_size]
         batch_team_info = {team_id: team_game_info_dict[team_id] for team_id in batch_team_ids}        
 
-        team_full_name = team_dictHyphen.get(team_ids[i], 'Unknown Team') 
+        team_full_name = team_dictHyphen.get(team_ids[i], 'Unknown Team')         
         
 
         logger.info(f"Processing batch {i // batch_size + 1} of {len(team_ids) // batch_size + 1}")
@@ -199,11 +245,31 @@ def fetch_and_save(team_game_info_dict, batch_size=1, delay_between_batches=3):
             logger.warning("No data fetched for this batch.")
             continue
 
-        processed_data = process_data(results)
-        if processed_data:
-            stats_df = pd.concat(processed_data, ignore_index=True)
-            stats_df.to_json(f'game_data_batch_{i // batch_size + 1}___{team_full_name}.json', orient="records", lines=False)
-            logger.info(f"Saved data for batch {i // batch_size + 1}___{team_full_name}")
+        processed_dataLs = process_data(results)
+        # print(processed_dataLs)
+        if processed_dataLs:
+            stats_df = pd.concat(processed_dataLs, ignore_index=True)            
+
+            stats_df = stats_df.iloc[stats_df['DateFormated'].str.split('/').apply(lambda x: (x[2], x[1], x[0])).argsort()]
+
+            # # To save in Json and then bulk manually in google sheets
+            # stats_df.to_json(
+            #     f'game_data_batch_{i // batch_size + 1}______{team_full_name}.json',
+            #     orient="records",
+            #     lines=False,
+            #     force_ascii=False
+            # )
+
+            sheetName = f"{team_full_name}_BXSC"
+            sheets_service = GoogleSheetsService(GSheetSetting.FOLDER_ID)
+            sheets_service._update_spreadsheet(GeneralSetting.FILENAME_OUTPUT, sheetName, stats_df)
+
+            try:
+                print(f"Processing file '{sheetName}'")
+            except Exception as e:
+                print(f"Error processing file '{filename}': {e}")
+
+            logger.info(f"Saved data for batch {i // batch_size + 1}______{team_full_name}")
 
         # Add a delay between batches to avoid overwhelming the API
         time.sleep(delay_between_batches)
@@ -221,11 +287,11 @@ def fetch_and_save(team_game_info_dict, batch_size=1, delay_between_batches=3):
 #             ]
 #     }
 #     ,
-#     1610612738: {
-#         'team_full_name': 'Boston Celtics',
+#     1610612743: {
+#         'team_full_name': 'Denver Nuggets',
 #         'games': [
-#                     {'GAME_ID': '0022400650', 'GAME_DATE': '27/01/2025'},
-#                     {'GAME_ID': '0022400635', 'GAME_DATE': '25/01/2025'}
+#                     {'GAME_ID': '0022400087', 'GAME_DATE': '26/10/2024'},
+#                     {'GAME_ID': '0022400075', 'GAME_DATE': '24/10/2024'}
 #                 ]
 #     }
 # }
@@ -248,7 +314,13 @@ box_score_all = leaguegamelog.LeagueGameLog(
     sorter="DATE"
 )
 
-df = box_score_all.get_data_frames()[0]
+df_bxscore = box_score_all.get_data_frames()[0]
+
+# Get the current date in the same format as GAME_DATE (YYYY-MM-DD)
+current_date = datetime.now().strftime('%Y-%m-%d')
+
+# Filter out rows where GAME_DATE matches the current date
+df = df_bxscore[df_bxscore['GAME_DATE'] != current_date]
 
 df['GAME_DATE'] = pd.to_datetime(df['GAME_DATE']).dt.strftime('%d/%m/%Y')
 
@@ -263,7 +335,7 @@ for team_id, team_data in grouped_by_team:
     
     if save_to_json:
     
-        filename = f"teamId_{team_id}___TeamName_{team_full_name}.json"
+        filename = f"teamId_{team_id}______TeamName_{team_full_name}.json"
         
     
         with open(filename, 'w') as json_file:
@@ -280,5 +352,5 @@ for team_id, team_data in grouped_by_team:
 if save_to_json:
     print("\nData has been saved to JSON files.")
 else:
-    print("\nData has been stored in the dictionary:")
+    print("\nData has been stored in the dictionary:")    
     fetch_and_save(team_game_info_dict)

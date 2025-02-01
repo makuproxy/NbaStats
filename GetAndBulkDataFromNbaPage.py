@@ -24,7 +24,8 @@ load_dotenv()
 process_start_time = time.time()
 
 
-pd.set_option('display.max_rows', None)
+# pd.set_option('display.max_rows', None)
+# pd.set_option('display.max_columns', None)
 
 def scrape_data(urls, sheet_suffix, team_data=None):
     team_data = team_data or {}

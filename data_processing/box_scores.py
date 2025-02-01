@@ -20,13 +20,22 @@ def fetch_box_score(game_id):
 
     # Apply formatting to 'MIN' column
     result_box_score['MIN'] = result_box_score['MIN'].apply(BasketballHelpers.format_minutes)
+    result_box_score['MIN_DECIMAL'] = result_box_score['MIN'].apply(calculate_min_decimal)
     for col in ['FGM', 'FGA', 'FG3M', 'FG3A', 'FTM', 'FTA', 'OREB', 'DREB', 'REB', 'AST', 'STL', 'BLK', 'TO', 'PF', 'PTS']:
         result_box_score[col] = result_box_score[col].fillna(0).astype(int).astype(str)
 
     for col in ['FG_PCT', 'FG3_PCT', 'FT_PCT']:
         result_box_score[col] = result_box_score[col].apply(
             lambda x: str(int(x * 100)) if pd.notna(x) and float(x) == 1.0 else f"{x * 100:.1f}" if pd.notna(x) else np.nan
-        )    
+        )
+
+    result_box_score['PLAYER_CONDITION'] = (
+        result_box_score['COMMENT'].str.strip().ne('')
+        .map({True: 'OUT', False: None})
+        .fillna(
+            result_box_score['START_POSITION'].str.strip().ne('').map({True: 'STARTER', False: 'BENCH'})
+        )
+    )
 
     return result_box_score
 
@@ -52,21 +61,30 @@ def get_recent_box_scores(df, game_logs_df, teamIdLookup):
         game_id = row['Game_ID']
         opponent_id = row['Opponent_Team_ID']
         date_formatted = row['DateFormated'].strftime('%m/%d/%Y') 
-        # date_formatted = row['DateFormated'].strftime('%d/%m/%Y') 
         
         # Fetch the box score for the current game
         box_score_df = fetch_box_score(game_id)
         box_score_df.insert(0, 'DateFormated', date_formatted)
         
         # Filter the box score DataFrame for the given teamIdLookup
-        # filtered_box_score_df = box_score_df[box_score_df['TEAM_ID'] == teamIdLookup]
         box_score_df.loc[box_score_df['TEAM_ID'] == teamIdLookup, 'BX_Opponent_Team_ID'] = opponent_id
         
         filtered_box_score_df = box_score_df[box_score_df['TEAM_ID'] == teamIdLookup]
         
         if not filtered_box_score_df.empty:
-            # Add the opponent ID to the filtered box score
-            # filtered_box_score_df.loc[:, 'BX_Opponent_Team_ID'] = opponent_id
+            # Use .loc[] to modify the columns explicitly
+            
+            # 1. MIN_DECIMAL calculation
+            filtered_box_score_df.loc[:, 'MIN_DECIMAL'] = filtered_box_score_df['MIN'].apply(lambda x: calculate_min_decimal(x))
+            
+            # 2. PLAYER_CONDITION calculation (using vectorized logic)
+            filtered_box_score_df.loc[:, 'PLAYER_CONDITION'] = (
+                filtered_box_score_df['COMMENT'].str.strip().ne('')  # Check if COMMENT is non-empty
+                .map({True: 'OUT', False: None})  # If COMMENT is non-empty, 'OUT', else None
+                .fillna(filtered_box_score_df['START_POSITION'].str.strip().ne('').map({True: 'STARTER', False: 'BENCH'}))  # Apply logic to START_POSITION
+            )
+            
+            # Add the updated box score to the box_scores list
             box_scores.append(filtered_box_score_df)
     
     if box_scores:
@@ -74,6 +92,23 @@ def get_recent_box_scores(df, game_logs_df, teamIdLookup):
         return box_scores
     else:
         return []
+
+
+
+# Helper function to calculate MIN_DECIMAL
+def calculate_min_decimal(min_time):
+    if isinstance(min_time, str) and ":" in min_time:
+        minutes, seconds = min_time.split(":")
+        try:
+            minutes = int(minutes)
+            seconds = float(seconds)
+            return minutes + round(seconds / 60, 2)
+        except ValueError:
+            return 0
+    return 0 
+
+
+
     
 
 def process_box_scores_by_uniquegameIds(unique_game_ids_team_names, boxscoreDataToUpdate):
@@ -110,6 +145,14 @@ def process_box_scores_by_uniquegameIds(unique_game_ids_team_names, boxscoreData
                 # Insert the DateFormated field to the dataframe
                 box_score_df.insert(0, 'DateFormated', date_formatted)
                 box_score_df['BX_Opponent_Team_ID'] = OppBxsc
+
+                column_order = [
+                    'DateFormated', 'GAME_ID', 'TEAM_ID', 'PLAYER_ID', 'PLAYER_NAME', 'START_POSITION', 
+                    'COMMENT', 'MIN', 'FGM', 'FGA', 'FG_PCT', 'FG3M', 'FG3A', 'FG3_PCT', 'FTM', 'FTA', 
+                    'FT_PCT', 'OREB', 'DREB', 'REB', 'AST', 'STL', 'BLK', 'TO', 'PF', 'PTS', 'PLUS_MINUS', 
+                    'BX_Opponent_Team_ID', 'MIN_DECIMAL', 'PLAYER_CONDITION'
+                ]
+                box_score_df = box_score_df[column_order]
 
                 # Store the box_score_df in stats_data with the team name as the key
                 stats_data[team_name] = box_score_df

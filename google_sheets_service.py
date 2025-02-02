@@ -591,7 +591,7 @@ class GoogleSheetsService:
         """
         # value = row.get(column_name)
         # If `row` is a dictionary, we can use .get() to fetch the value
-        if isinstance(row, dict):
+        if isinstance(row, pd.Series):
             value = row.get(column_name)
         else:
             # If `row` is not a dictionary, handle by index or alternative logic
